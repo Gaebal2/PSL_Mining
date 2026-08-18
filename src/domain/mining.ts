@@ -3,6 +3,7 @@ export const AD_ACTIVE_HOURS = 24;
 export const ABANDONMENT_DAYS = 7;
 export const PSL_PER_WINNING_GRID = 100_000_000;
 export const WINNING_GRID_COUNT = 888;
+export const TOTAL_MINE_COUNT = 510_100_000_000_000;
 
 export type Pickaxe = 'iron' | 'bronze' | 'silver' | 'gold' | 'diamond';
 

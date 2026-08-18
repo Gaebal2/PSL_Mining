@@ -1,14 +1,24 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { PSL_PER_WINNING_GRID, WINNING_GRID_COUNT } from '@/domain/mining';
+import { PSL_PER_WINNING_GRID, TOTAL_MINE_COUNT, WINNING_GRID_COUNT } from '@/domain/mining';
+import { useAppState } from '@/state/app-state';
 import { Card, Header, Screen } from '@/ui/components';
 import { palette } from '@/ui/theme';
 
 const pickaxeStats = [
-  ['다이아몬드', '0', '#8DE1F2'], ['금', '0', '#F4C95D'], ['은', '0', '#C7D0CC'], ['동', '0', '#C98352'], ['쇠', '1', '#7E9187'],
+  ['다이아몬드', '0', '#8DE1F2'],
+  ['금', '0', '#F4C95D'],
+  ['은', '0', '#C7D0CC'],
+  ['동', '0', '#C98352'],
+  ['철', '1', '#7E9187'],
 ];
 
 export function StatusScreen() {
+  const { state } = useAppState();
+  const mines = Object.values(state.mines);
+  const completedMineCount = mines.filter((mine) => mine.completed).length;
+  const activeMineCount = mines.filter((mine) => mine.ownerId && !mine.completed).length;
+
   return (
     <Screen>
       <Header eyebrow="PSL NETWORK STATUS" title="채굴 현황" right={<Text style={styles.updated}>방금 전</Text>} />
@@ -25,12 +35,12 @@ export function StatusScreen() {
       <Card>
         <Text style={styles.sectionTitle}>실시간 네트워크</Text>
         <View style={styles.statGrid}>
-          <Stat label="전체 광부" value="1" />
-          <Stat label="채굴 중" value="0" />
-          <Stat label="완료 막장" value="0" />
-          <Stat label="발견된 광맥" value="0 / 888" gold />
+          <Stat label="총 막장" value={`약 ${(TOTAL_MINE_COUNT / 1_000_000_000_000).toFixed(1)}조`} />
+          <Stat label="채굴 완료 막장" value={completedMineCount.toLocaleString()} />
+          <Stat label="채굴 중" value={activeMineCount.toLocaleString()} />
+          <Stat label="발견된 광맥" value={`0 / ${WINNING_GRID_COUNT}`} gold />
         </View>
-        <Text style={styles.note}>현재 값은 로컬 MVP 데이터입니다. 운영 버전에서는 서버 집계 API와 연결됩니다.</Text>
+        <Text style={styles.note}>총 막장은 지구 전체 표면을 1m × 1m로 나눈 근삿값입니다. 현재 수치는 로컬 MVP 데이터이며 운영 버전에서는 서버 집계 API와 연결됩니다.</Text>
       </Card>
 
       <Card>

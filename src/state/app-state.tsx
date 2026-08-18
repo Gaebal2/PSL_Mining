@@ -38,7 +38,7 @@ type AppContextValue = {
   login: (provider: User['provider']) => void;
   logout: () => void;
   selectGrid: (latitude: number, longitude: number) => void;
-  startMining: () => void;
+  startMining: (latitude?: number, longitude?: number) => void;
   watchAd: () => void;
   syncProgress: () => void;
   leave: () => void;
@@ -133,7 +133,24 @@ export function AppStateProvider({ children }: PropsWithChildren) {
     setState((previous) => ({ ...previous, selectedGrid: next, mines: { ...previous.mines, [next.id]: next } }));
   }
 
-  function startMining() {
+  function startMining(latitude?: number, longitude?: number) {
+    if (latitude !== undefined && longitude !== undefined) {
+      if (!state.user) return;
+      const requested = createGrid(latitude, longitude);
+      if (currentMine && currentMine.id !== requested.id) throw new Error('현재 막장에서 먼저 나가 주세요.');
+      const stored = state.mines[requested.id] ?? requested;
+      if (stored.ownerId && stored.ownerId !== state.user.id) throw new Error('다른 광부가 채굴 중인 막장입니다.');
+      if (stored.completed) throw new Error('이미 채굴 완료된 막장입니다.');
+      const now = new Date();
+      const next = {
+        ...stored,
+        ownerId: state.user.id,
+        abandonmentAt: new Date(now.getTime() + 7 * 86_400_000).toISOString(),
+      };
+      setState((previous) => ({ ...previous, selectedGrid: next, mines: { ...previous.mines, [next.id]: next } }));
+      router.push('/(tabs)/mine');
+      return;
+    }
     claimSelected(false);
     router.push('/(tabs)/mine');
   }

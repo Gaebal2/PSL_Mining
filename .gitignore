@@ -6,9 +6,11 @@ node_modules/
 # Expo
 .expo/
 .gradle-local/
+.android-local/
 dist/
 web-build/
 expo-env.d.ts
+*.apk
 
 # Native
 .kotlin/
