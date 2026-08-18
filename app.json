@@ -1,7 +1,8 @@
 {
   "expo": {
     "name": "PSL_Mining",
-    "slug": "PSL_Mining",
+    "slug": "psl-mining",
+    "owner": "clazyman",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -23,7 +24,10 @@
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.gaebal2.pslmining",
-      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "output": "static",
@@ -44,6 +48,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b91aea13-301c-4e72-8604-37e9ac028720"
+      }
     }
   }
 }

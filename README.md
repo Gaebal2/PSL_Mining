@@ -29,3 +29,11 @@ iOS는 macOS/Xcode 또는 Expo 개발 빌드가 필요합니다. 웹 미리보�
 npm run validate
 npx expo export --platform web
 ```
+
+## Android 테스트 APK
+
+```bash
+npx eas-cli@latest build --platform android --profile preview
+```
+
+완료 후 EAS 빌드 페이지의 Install 버튼 또는 QR 코드로 APK를 설치합니다.
