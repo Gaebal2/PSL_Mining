@@ -1,56 +1,31 @@
-# Welcome to your Expo app 👋
+# PSL Mining
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+SASEUL 블록체인의 PSL 토큰을 시간 기반 광산 게임으로 발견하는 React Native Expo 앱입니다. Android, iOS, Web 미리보기를 지원합니다.
 
-## Get started
+## 현재 구현된 MVP
 
-1. Install dependencies
+- Pi, Google, Apple 로그인 UI와 로컬 개발 인증
+- GPS 현재 위치 및 전 세계 지도 탐색
+- Web Mercator 기반 1m × 1m Grid ID 계산
+- 48m 막장, 레벨/곡괭이 속도, 24시간 광고 활성 규칙
+- 자발적 퇴장 및 7일 미복귀 시 깊이 보존을 위한 도메인 모델
+- 채굴 현황, 프로필, PSL_Wallet 주소 및 전체 출금 UX
+- 로컬 상태 저장
 
-   ```bash
-   npm install
-   ```
+실제 소셜 로그인, 광고, 당첨 Grid 커밋-리빌, PSL_Wallet 서명, SASEUL 전송은 운영 백엔드와 키 설정 후 연결해야 합니다.
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## 실행
 
 ```bash
-npm run reset-project
+npm install
+npm run android
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+iOS는 macOS/Xcode 또는 Expo 개발 빌드가 필요합니다. 웹 미리보기는 `npm run web`으로 실행합니다.
 
-### Other setup steps
+## 검증
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npm run validate
+npx expo export --platform web
+```

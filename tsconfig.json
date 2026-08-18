@@ -12,9 +12,17 @@
     }
   },
   "include": [
-    "**/*.ts",
-    "**/*.tsx",
+    "src/app/**/*.ts",
+    "src/app/**/*.tsx",
+    "src/domain/**/*.ts",
+    "src/features/**/*.ts",
+    "src/features/**/*.tsx",
+    "src/state/**/*.ts",
+    "src/state/**/*.tsx",
+    "src/ui/**/*.ts",
+    "src/ui/**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-  ]
+  ],
+  "exclude": ["src/domain/**/*.test.ts"]
 }

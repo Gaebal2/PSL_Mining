@@ -8,7 +8,11 @@
     "scheme": "pslmining",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.gaebal2.pslmining",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "현재 위치를 금광 지도에 표시하기 위해 위치 권한을 사용합니다."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +21,9 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.gaebal2.pslmining",
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
     },
     "web": {
       "output": "static",
@@ -28,11 +34,12 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#08130F",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
