@@ -7,6 +7,7 @@ import { palette } from '@/ui/theme';
 
 export function MineMap({ latitude, longitude, onSelect }: { latitude: number; longitude: number; onSelect: (lat: number, lng: number) => void }) {
   const map = useRef<MapView>(null);
+  const googleMapsEnabled = process.env.EXPO_PUBLIC_GOOGLE_MAPS_ENABLED === 'true';
 
   async function goToMyLocation() {
     const permission = await Location.requestForegroundPermissionsAsync();
@@ -19,6 +20,17 @@ export function MineMap({ latitude, longitude, onSelect }: { latitude: number; l
 
   function selectCenter(region: Region) {
     onSelect(region.latitude, region.longitude);
+  }
+
+  if (!googleMapsEnabled) {
+    return (
+      <View style={[styles.wrap, styles.unavailable]}>
+        <Text style={styles.unavailableTitle}>지도를 준비 중입니다</Text>
+        <Text style={styles.unavailableText}>
+          이 테스트 빌드에는 Google Maps API 키가 설정되지 않았습니다.
+        </Text>
+      </View>
+    );
   }
 
   return (
@@ -48,4 +60,7 @@ const styles = StyleSheet.create({
   gridHintText: { color: palette.text, fontSize: 11, fontWeight: '800' },
   location: { position: 'absolute', right: 14, bottom: 14, width: 48, height: 48, borderRadius: 24, backgroundColor: palette.gold, alignItems: 'center', justifyContent: 'center' },
   locationText: { color: '#172017', fontSize: 25, fontWeight: '900' },
+  unavailable: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
+  unavailableTitle: { color: palette.text, fontSize: 20, fontWeight: '900', marginBottom: 10 },
+  unavailableText: { color: palette.muted, fontSize: 13, lineHeight: 20, textAlign: 'center' },
 });
