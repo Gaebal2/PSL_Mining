@@ -1,12 +1,11 @@
-import * as Location from 'expo-location';
 import { useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, Polygon, Region } from 'react-native-maps';
 
 import { palette } from '@/ui/theme';
 
 const EARTH_RADIUS = 6_378_137;
-const GRID_RADIUS = 6;
+const MAX_VISIBLE_CELLS = 2_500;
 
 type Coordinate = { latitude: number; longitude: number };
 type GridCell = { id: string; center: Coordinate; coordinates: Coordinate[] };
@@ -26,16 +25,27 @@ function fromMercator(x: number, y: number): Coordinate {
   };
 }
 
-function createVisibleGrid(latitude: number, longitude: number): GridCell[] {
-  const origin = toMercator(latitude, longitude);
-  const centerX = Math.floor(origin.x);
-  const centerY = Math.floor(origin.y);
+function createVisibleGrid(region: Region): { cells: GridCell[]; needsZoom: boolean } {
+  const northWest = toMercator(
+    region.latitude + region.latitudeDelta / 2,
+    region.longitude - region.longitudeDelta / 2,
+  );
+  const southEast = toMercator(
+    region.latitude - region.latitudeDelta / 2,
+    region.longitude + region.longitudeDelta / 2,
+  );
+  const minX = Math.floor(Math.min(northWest.x, southEast.x)) - 1;
+  const maxX = Math.floor(Math.max(northWest.x, southEast.x)) + 1;
+  const minY = Math.floor(Math.min(northWest.y, southEast.y)) - 1;
+  const maxY = Math.floor(Math.max(northWest.y, southEast.y)) + 1;
+  const cellCount = (maxX - minX + 1) * (maxY - minY + 1);
+
+  if (cellCount > MAX_VISIBLE_CELLS) return { cells: [], needsZoom: true };
+
   const cells: GridCell[] = [];
 
-  for (let yOffset = -GRID_RADIUS; yOffset <= GRID_RADIUS; yOffset += 1) {
-    for (let xOffset = -GRID_RADIUS; xOffset <= GRID_RADIUS; xOffset += 1) {
-      const x = centerX + xOffset;
-      const y = centerY + yOffset;
+  for (let y = minY; y <= maxY; y += 1) {
+    for (let x = minX; x <= maxX; x += 1) {
       cells.push({
         id: `G-${x}-${y}`,
         center: fromMercator(x + 0.5, y + 0.5),
@@ -49,7 +59,7 @@ function createVisibleGrid(latitude: number, longitude: number): GridCell[] {
     }
   }
 
-  return cells;
+  return { cells, needsZoom: false };
 }
 
 export function MineMap({ latitude, longitude, onSelect, onStart }: {
@@ -59,30 +69,18 @@ export function MineMap({ latitude, longitude, onSelect, onStart }: {
   onStart: (lat: number, lng: number) => void;
 }) {
   const map = useRef<MapView>(null);
-  const [viewport, setViewport] = useState({ latitude, longitude });
+  const [viewport, setViewport] = useState<Region>({
+    latitude,
+    longitude,
+    latitudeDelta: 0.00014,
+    longitudeDelta: 0.00014,
+  });
   const googleMapsEnabled = process.env.EXPO_PUBLIC_GOOGLE_MAPS_ENABLED === 'true';
   const selectedCellId = useMemo(() => {
     const point = toMercator(latitude, longitude);
     return `G-${Math.floor(point.x)}-${Math.floor(point.y)}`;
   }, [latitude, longitude]);
-  const cells = useMemo(() => createVisibleGrid(viewport.latitude, viewport.longitude), [viewport.latitude, viewport.longitude]);
-
-  async function goToMyLocation() {
-    const permission = await Location.requestForegroundPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('위치 권한 필요', '현재 위치로 이동하려면 위치 권한을 허용해 주세요.');
-      return;
-    }
-    const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    const region = {
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      latitudeDelta: 0.00014,
-      longitudeDelta: 0.00014,
-    };
-    map.current?.animateToRegion(region, 500);
-    setViewport(region);
-  }
+  const visibleGrid = useMemo(() => createVisibleGrid(viewport), [viewport]);
 
   function selectCell(cell: GridCell) {
     onSelect(cell.center.latitude, cell.center.longitude);
@@ -107,15 +105,21 @@ export function MineMap({ latitude, longitude, onSelect, onStart }: {
         ref={map}
         style={StyleSheet.absoluteFill}
         initialRegion={{ latitude, longitude, latitudeDelta: 0.00014, longitudeDelta: 0.00014 }}
-        onRegionChangeComplete={(region: Region) => setViewport({ latitude: region.latitude, longitude: region.longitude })}
+        onRegionChangeComplete={setViewport}
         showsUserLocation
-        showsMyLocationButton={false}
+        showsMyLocationButton
+        mapPadding={{ top: 106, right: 8, bottom: 174, left: 8 }}
         showsBuildings={false}
         showsIndoors={false}
         showsTraffic={false}
+        showsCompass={false}
+        rotateEnabled={false}
+        pitchEnabled={false}
+        maxZoomLevel={20}
+        minZoomLevel={2}
         mapType="standard"
       >
-        {cells.map((cell) => {
+        {visibleGrid.cells.map((cell) => {
           const selected = cell.id === selectedCellId;
           return (
             <Polygon
@@ -133,10 +137,9 @@ export function MineMap({ latitude, longitude, onSelect, onStart }: {
           <View style={styles.selectedMarker}><View style={styles.selectedMarkerCore} /></View>
         </Marker>
       </MapView>
-      <View pointerEvents="none" style={styles.gridHint}><Text style={styles.gridHintText}>한 칸 · 1m × 1m</Text></View>
-      <Pressable accessibilityLabel="현재 위치로 이동" style={styles.location} onPress={goToMyLocation}>
-        <Text style={styles.locationText}>◎</Text>
-      </Pressable>
+      <View pointerEvents="none" style={styles.gridHint}>
+        <Text style={styles.gridHintText}>{visibleGrid.needsZoom ? '격자를 보려면 지도를 더 확대하세요' : '한 칸 · 1m × 1m'}</Text>
+      </View>
     </View>
   );
 }
@@ -147,8 +150,6 @@ const styles = StyleSheet.create({
   gridHintText: { color: palette.text, fontSize: 11, fontWeight: '800' },
   selectedMarker: { width: 18, height: 18, borderRadius: 9, borderWidth: 3, borderColor: '#FFFFFF', backgroundColor: '#E12D39', alignItems: 'center', justifyContent: 'center', elevation: 4 },
   selectedMarkerCore: { width: 4, height: 4, borderRadius: 2, backgroundColor: '#FFFFFF' },
-  location: { position: 'absolute', right: 16, bottom: 174, width: 48, height: 48, borderRadius: 24, backgroundColor: palette.gold, alignItems: 'center', justifyContent: 'center', elevation: 4 },
-  locationText: { color: '#172017', fontSize: 25, fontWeight: '900' },
   fallback: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: palette.surface2 },
   fallbackTitle: { color: palette.text, fontSize: 18, fontWeight: '900' },
   fallbackCopy: { color: palette.muted, fontSize: 13, marginTop: 8 },
