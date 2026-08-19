@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "PSL_Mining",
+    "name": "Mining",
     "slug": "psl-mining",
     "owner": "clazyman",
     "version": "1.0.0",
@@ -11,21 +11,15 @@
     "ios": {
       "icon": "./assets/images/psl-mining-icon.png",
       "bundleIdentifier": "com.gaebal2.pslmining",
-      "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "현재 위치를 금광 지도에 표시하기 위해 위치 권한을 사용합니다."
-      }
+      "infoPlist": {}
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#7157FF",
-        "foregroundImage": "./assets/images/psl-mining-icon.png"
+        "foregroundImage": "./assets/images/psl-mining-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.gaebal2.pslmining",
-      "permissions": [
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_FINE_LOCATION"
-      ]
+      "package": "com.gaebal2.pslmining"
     },
     "web": {
       "output": "static",

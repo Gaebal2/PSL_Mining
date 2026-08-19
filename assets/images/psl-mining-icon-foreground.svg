@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="PSL Mining adaptive foreground">
+  <defs>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="7" stdDeviation="8" flood-color="#25186f" flood-opacity=".34"/>
+    </filter>
+  </defs>
+  <text x="256" y="315" fill="#fff" font-family="Arial,sans-serif" font-size="142" font-weight="900" letter-spacing="2" text-anchor="middle">PSL</text>
+  <g transform="translate(350 79) rotate(-43 52 52)" filter="url(#shadow)" fill="#fff">
+    <rect x="47" y="31" width="12" height="69" rx="6"/>
+    <path d="M17 37c18-20 50-25 77-6l-9 13c-17-11-39-11-58 4z"/>
+    <path d="M22 37 12 27l5 21 16 8-6-8zM89 34l14-7-9 20-17 6 8-10z"/>
+  </g>
+</svg>
