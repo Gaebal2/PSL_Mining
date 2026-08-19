@@ -9,7 +9,7 @@ export function LoginScreen() {
   const { login } = useAppState();
   return (
     <Screen>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <View style={styles.hero}>
         <View style={styles.logo}><Text style={styles.logoText}>P</Text></View>
         <Text style={styles.kicker}>SASEUL BLOCKCHAIN</Text>
@@ -30,8 +30,8 @@ export function LoginScreen() {
 
 const styles = StyleSheet.create({
   hero: { alignItems: 'center', paddingTop: 44, paddingBottom: 20 },
-  logo: { width: 88, height: 88, borderRadius: 44, backgroundColor: palette.gold, alignItems: 'center', justifyContent: 'center', marginBottom: 22 },
-  logoText: { color: '#172017', fontSize: 46, fontWeight: '900' },
+  logo: { width: 88, height: 88, borderRadius: 24, backgroundColor: palette.gold, alignItems: 'center', justifyContent: 'center', marginBottom: 22, shadowColor: palette.goldDark, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.26, shadowRadius: 24, elevation: 4 },
+  logoText: { color: '#FFFFFF', fontSize: 46, fontWeight: '900' },
   kicker: { color: palette.green, fontWeight: '800', fontSize: 11, letterSpacing: 2.5 },
   title: { color: palette.text, fontSize: 42, fontWeight: '900', marginTop: 8 },
   copy: { color: palette.muted, fontSize: 16, lineHeight: 24, textAlign: 'center', maxWidth: 300, marginTop: 12 },

@@ -29,11 +29,11 @@ export default function TabsLayout() {
       initialRouteName="map"
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: '#F4C95D',
-        tabBarInactiveTintColor: '#7E9187',
+        tabBarActiveTintColor: '#7157FF',
+        tabBarInactiveTintColor: '#697180',
         tabBarStyle: {
-          backgroundColor: '#0E1D17',
-          borderTopColor: '#20352A',
+          backgroundColor: '#FFFFFF',
+          borderTopColor: '#E5E8EF',
           height: 64 + insets.bottom,
           paddingTop: 8,
           paddingBottom: Math.max(insets.bottom, 8),

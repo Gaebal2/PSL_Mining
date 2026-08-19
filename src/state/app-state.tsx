@@ -120,38 +120,31 @@ export function AppStateProvider({ children }: PropsWithChildren) {
     setState((previous) => ({ ...previous, selectedGrid: previous.mines[grid.id] ?? grid }));
   }
 
-  function claimSelected(activate: boolean) {
+  function startMining(latitude?: number, longitude?: number) {
     if (!state.user) return;
-    if (currentMine && currentMine.id !== state.selectedGrid.id) throw new Error('현재 막장에서 먼저 나와주세요.');
-    const stored = state.mines[state.selectedGrid.id] ?? state.selectedGrid;
+    const requested = latitude !== undefined && longitude !== undefined
+      ? createGrid(latitude, longitude)
+      : state.selectedGrid;
+    const stored = state.mines[requested.id] ?? requested;
+    if (stored.ownerId && stored.ownerId !== state.user.id) throw new Error('다른 광부가 채굴 중인 막장입니다.');
+    if (stored.completed) throw new Error('이미 채굴 완료된 막장입니다.');
+
     const now = new Date();
-    const next = activate ? activateWithAd(stored, state.user.id, now) : {
+    const next = {
       ...stored,
       ownerId: state.user.id,
       abandonmentAt: new Date(now.getTime() + 7 * 86_400_000).toISOString(),
     };
-    setState((previous) => ({ ...previous, selectedGrid: next, mines: { ...previous.mines, [next.id]: next } }));
-  }
-
-  function startMining(latitude?: number, longitude?: number) {
-    if (latitude !== undefined && longitude !== undefined) {
-      if (!state.user) return;
-      const requested = createGrid(latitude, longitude);
-      if (currentMine && currentMine.id !== requested.id) throw new Error('현재 막장에서 먼저 나가 주세요.');
-      const stored = state.mines[requested.id] ?? requested;
-      if (stored.ownerId && stored.ownerId !== state.user.id) throw new Error('다른 광부가 채굴 중인 막장입니다.');
-      if (stored.completed) throw new Error('이미 채굴 완료된 막장입니다.');
-      const now = new Date();
-      const next = {
-        ...stored,
-        ownerId: state.user.id,
-        abandonmentAt: new Date(now.getTime() + 7 * 86_400_000).toISOString(),
-      };
-      setState((previous) => ({ ...previous, selectedGrid: next, mines: { ...previous.mines, [next.id]: next } }));
-      router.push('/(tabs)/mine');
-      return;
-    }
-    claimSelected(false);
+    setState((previous) => {
+      const mines = { ...previous.mines };
+      const activeMine = Object.values(mines).find((mine) => mine.ownerId === previous.user?.id);
+      if (activeMine && activeMine.id !== next.id) {
+        const settled = leaveMine(activeMine, speed, now);
+        mines[settled.id] = settled;
+      }
+      mines[next.id] = next;
+      return { ...previous, selectedGrid: next, mines };
+    });
     router.push('/(tabs)/mine');
   }
 

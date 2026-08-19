@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -21,9 +20,9 @@ export function MapScreen() {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <MineMap latitude={grid.latitude} longitude={grid.longitude} onSelect={selectGrid} onStart={handleStart} />
+      <MineMap latitude={grid.latitude} longitude={grid.longitude} onSelect={selectGrid} />
       <View pointerEvents="none" style={styles.titleOverlay}>
-        <Text style={styles.eyebrow}>GLOBAL GOLD MAP</Text>
+        <Text style={styles.eyebrow}>LEGO MINING PLANET</Text>
         <View style={styles.titleRow}>
           <Text style={styles.title}>채굴 지도</Text>
           <View style={styles.live}><View style={styles.dot} /><Text style={styles.liveText}>LIVE</Text></View>
@@ -37,15 +36,11 @@ export function MapScreen() {
           </View>
           <View style={styles.badge}><Text style={styles.badgeText}>{grid.depthMeters.toFixed(1)} / 48m</Text></View>
         </View>
-        {currentMine && currentMine.id !== grid.id ? (
-          <Button title="현재 막장으로 이동" onPress={() => router.push('/(tabs)/mine')} />
-        ) : (
-          <Button
-            title={grid.ownerId ? '이 막장 이어서 보기' : '이 위치에서 채굴 시작'}
-            onPress={() => handleStart()}
-            disabled={grid.completed || Boolean(grid.ownerId && grid.ownerId !== state.user?.id)}
-          />
-        )}
+        <Button
+          title={currentMine && currentMine.id !== grid.id ? '여기서 채굴 다시 시작하기' : '여기서 채굴 시작하기'}
+          onPress={() => handleStart()}
+          disabled={grid.completed || Boolean(grid.ownerId && grid.ownerId !== state.user?.id)}
+        />
       </Card>
     </SafeAreaView>
   );
@@ -53,7 +48,7 @@ export function MapScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.background },
-  titleOverlay: { position: 'absolute', top: 18, left: 18, right: 18, backgroundColor: 'rgba(8,19,15,0.88)', borderRadius: 18, paddingHorizontal: 16, paddingVertical: 12 },
+  titleOverlay: { position: 'absolute', top: 18, left: 18, right: 18, backgroundColor: 'rgba(255,255,255,0.94)', borderColor: palette.border, borderWidth: 1, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 12 },
   eyebrow: { color: palette.gold, fontSize: 10, letterSpacing: 1.8, fontWeight: '800' },
   titleRow: { marginTop: 3, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { color: palette.text, fontSize: 24, fontWeight: '900' },

@@ -5,11 +5,11 @@
     "owner": "clazyman",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/psl-mining-icon.png",
     "scheme": "pslmining",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
+      "icon": "./assets/images/psl-mining-icon.png",
       "bundleIdentifier": "com.gaebal2.pslmining",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "현재 위치를 금광 지도에 표시하기 위해 위치 권한을 사용합니다."
@@ -17,10 +17,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#7157FF",
+        "foregroundImage": "./assets/images/psl-mining-icon.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.gaebal2.pslmining",
@@ -38,8 +36,8 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#08130F",
-          "image": "./assets/images/splash-icon.png",
+          "backgroundColor": "#F4F6FB",
+          "image": "./assets/images/psl-mining-icon.png",
           "imageWidth": 76
         }
       ],

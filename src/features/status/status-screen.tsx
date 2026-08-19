@@ -7,7 +7,7 @@ import { palette } from '@/ui/theme';
 
 const pickaxeStats = [
   ['다이아몬드', '0', '#8DE1F2'],
-  ['금', '0', '#F4C95D'],
+  ['금', '0', '#7157FF'],
   ['은', '0', '#C7D0CC'],
   ['동', '0', '#C98352'],
   ['철', '1', '#7E9187'],
@@ -63,13 +63,13 @@ function Stat({ label, value, gold = false }: { label: string; value: string; go
 
 const styles = StyleSheet.create({
   updated: { color: palette.muted, fontSize: 11 },
-  hero: { backgroundColor: '#173B2C', borderColor: '#2B5B45', alignItems: 'center', paddingVertical: 28 },
-  heroLabel: { color: palette.green, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
-  heroValue: { color: palette.text, fontSize: 30, fontWeight: '900' },
-  symbol: { color: palette.gold, fontSize: 13, fontWeight: '900' },
-  split: { marginTop: 12, paddingTop: 18, borderTopColor: '#2B5B45', borderTopWidth: 1, width: '100%', flexDirection: 'row', justifyContent: 'space-around' },
-  smallLabel: { color: palette.muted, fontSize: 11, textAlign: 'center' },
-  smallValue: { color: palette.text, fontSize: 16, fontWeight: '900', textAlign: 'center', marginTop: 5 },
+  hero: { backgroundColor: palette.hero, borderColor: palette.hero, alignItems: 'center', paddingVertical: 28 },
+  heroLabel: { color: palette.mint, fontSize: 12, fontWeight: '800', letterSpacing: 1 },
+  heroValue: { color: palette.onHero, fontSize: 30, fontWeight: '900' },
+  symbol: { color: '#AFA0FF', fontSize: 13, fontWeight: '900' },
+  split: { marginTop: 12, paddingTop: 18, borderTopColor: '#4A435F', borderTopWidth: 1, width: '100%', flexDirection: 'row', justifyContent: 'space-around' },
+  smallLabel: { color: '#C8C4D8', fontSize: 11, textAlign: 'center' },
+  smallValue: { color: palette.onHero, fontSize: 16, fontWeight: '900', textAlign: 'center', marginTop: 5 },
   sectionTitle: { color: palette.text, fontSize: 18, fontWeight: '900', marginBottom: 4 },
   statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   stat: { width: '47%', backgroundColor: palette.surface2, borderRadius: 16, padding: 14, gap: 6 },

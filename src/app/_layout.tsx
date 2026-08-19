@@ -1,4 +1,4 @@
-import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
@@ -7,14 +7,14 @@ import { AppStateProvider, useAppState } from '@/state/app-state';
 SplashScreen.preventAutoHideAsync();
 
 const miningTheme = {
-  ...DarkTheme,
+  ...DefaultTheme,
   colors: {
-    ...DarkTheme.colors,
-    primary: '#F4C95D',
-    background: '#08130F',
-    card: '#0E1D17',
-    text: '#F6F3E8',
-    border: '#20352A',
+    ...DefaultTheme.colors,
+    primary: '#7157FF',
+    background: '#F4F6FB',
+    card: '#FFFFFF',
+    text: '#10131A',
+    border: '#E5E8EF',
   },
 };
 
@@ -26,7 +26,7 @@ function RootNavigator() {
 
   return (
     <ThemeProvider value={miningTheme}>
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#08130F' } }}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#F4F6FB' } }}>
         <Stack.Screen name="index" />
         <Stack.Screen name="(tabs)" />
       </Stack>

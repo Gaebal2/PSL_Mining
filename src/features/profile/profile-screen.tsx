@@ -53,7 +53,7 @@ export function ProfileScreen() {
           value={wallet}
           onChangeText={setWalletInput}
           placeholder="44자리 SASEUL 주소"
-          placeholderTextColor="#63766C"
+          placeholderTextColor={palette.muted}
           autoCapitalize="none"
           autoCorrect={false}
           style={styles.input}
@@ -72,17 +72,17 @@ export function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  verified: { backgroundColor: '#6C4BA0', paddingHorizontal: 11, paddingVertical: 8, borderRadius: 13 },
+  verified: { backgroundColor: palette.gold, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 13 },
   verifiedText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
-  balanceCard: { alignItems: 'center', backgroundColor: '#173B2C', borderColor: '#2B5B45' },
-  balanceLabel: { color: palette.green, fontSize: 12, fontWeight: '800' },
-  balance: { color: palette.text, fontSize: 38, fontWeight: '900' },
-  balanceSymbol: { color: palette.gold, fontWeight: '900', marginTop: -8, marginBottom: 6 },
-  fee: { color: palette.muted, fontSize: 11, textAlign: 'center' },
+  balanceCard: { alignItems: 'center', backgroundColor: palette.hero, borderColor: palette.hero },
+  balanceLabel: { color: palette.mint, fontSize: 12, fontWeight: '800' },
+  balance: { color: palette.onHero, fontSize: 38, fontWeight: '900' },
+  balanceSymbol: { color: '#AFA0FF', fontWeight: '900', marginTop: -8, marginBottom: 6 },
+  fee: { color: '#C8C4D8', fontSize: 11, textAlign: 'center' },
   metrics: { flexDirection: 'row', gap: 10, paddingVertical: 3 },
   sectionTitle: { color: palette.text, fontSize: 18, fontWeight: '900' },
   helper: { color: palette.muted, fontSize: 13, lineHeight: 19 },
-  input: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: palette.border, backgroundColor: '#0A1611', color: palette.text, paddingHorizontal: 15, fontSize: 13 },
+  input: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.background, color: palette.text, paddingHorizontal: 15, fontSize: 13 },
   identityRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
   identityLabel: { color: palette.muted, fontSize: 13 },
   identityValue: { color: palette.text, fontSize: 13, fontWeight: '800' },
