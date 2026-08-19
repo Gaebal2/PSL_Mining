@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
-import { LayoutChangeEvent, PanResponder, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, LayoutChangeEvent, PanResponder, StyleSheet, Text, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
 import landData from '@/assets/data/ne-110m-land.json';
 import { palette } from '@/ui/theme';
@@ -8,7 +9,8 @@ const EARTH_RADIUS = 6_378_137;
 const MIN_SCALE = 0.06;
 const MAX_SCALE = 120_000;
 const GRID_THRESHOLD = 0.8;
-const TILE_SIZE = 24;
+const WORLD_WIDTH_METERS = 2 * Math.PI * EARTH_RADIUS;
+const WORLD_OVERVIEW_CENTER = { latitude: 15, longitude: 0 };
 
 type Coordinate = { latitude: number; longitude: number };
 type Projected = { x: number; y: number };
@@ -41,45 +43,25 @@ function touchDistance(touches: readonly { pageX: number; pageY: number }[]) {
   return touches.length < 2 ? 0 : Math.hypot(touches[0].pageX - touches[1].pageX, touches[0].pageY - touches[1].pageY);
 }
 
-type LandPolygon = { rings: number[][][]; minLng: number; maxLng: number; minLat: number; maxLat: number };
+const LAND_POLYGONS = landData.features.map((feature) => feature.geometry.coordinates.map((ring) => (
+  ring.map(([longitude, latitude]) => toMercator(latitude, longitude))
+)));
 
-const LAND_POLYGONS: LandPolygon[] = landData.features.map((feature) => {
-  const rings = feature.geometry.coordinates;
-  const points = rings.flat();
-  return {
-    rings,
-    minLng: Math.min(...points.map((point) => point[0])),
-    maxLng: Math.max(...points.map((point) => point[0])),
-    minLat: Math.min(...points.map((point) => point[1])),
-    maxLat: Math.max(...points.map((point) => point[1])),
-  };
-});
-
-function pointInRing(latitude: number, longitude: number, ring: number[][]) {
-  let inside = false;
-  for (let index = 0, previous = ring.length - 1; index < ring.length; previous = index, index += 1) {
-    const [currentLng, currentLat] = ring[index];
-    const [previousLng, previousLat] = ring[previous];
-    const intersects = (currentLat > latitude) !== (previousLat > latitude)
-      && longitude < (previousLng - currentLng) * (latitude - currentLat) / (previousLat - currentLat) + currentLng;
-    if (intersects) inside = !inside;
-  }
-  return inside;
-}
-
-function isLand(latitude: number, longitude: number) {
-  return LAND_POLYGONS.some((polygon) => {
-    if (latitude < polygon.minLat || latitude > polygon.maxLat || longitude < polygon.minLng || longitude > polygon.maxLng) return false;
-    if (!pointInRing(latitude, longitude, polygon.rings[0])) return false;
-    return !polygon.rings.slice(1).some((hole) => pointInRing(latitude, longitude, hole));
-  });
+function coastlinePaths(center: Projected, scale: number, size: Size) {
+  const worldWidth = WORLD_WIDTH_METERS / scale;
+  return [-1, 0, 1].flatMap((worldOffset) => LAND_POLYGONS.map((rings, polygonIndex) => ({
+    key: `${worldOffset}-${polygonIndex}`,
+    d: rings.map((ring) => ring.map((point, pointIndex) => {
+      const x = size.width / 2 + (point.x - center.x) / scale + worldOffset * worldWidth;
+      const y = size.height / 2 - (point.y - center.y) / scale;
+      return `${pointIndex ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`;
+    }).join(' ') + ' Z').join(' '),
+  })));
 }
 
 function scaleLabel(scale: number) {
   if (scale <= GRID_THRESHOLD) return '화면을 눌러 1m × 1m 막장 선택';
-  const meters = scale * TILE_SIZE;
-  const distance = meters < 1_000 ? `약 ${Math.round(meters)}m` : `약 ${Math.round(meters / 1_000).toLocaleString()}km`;
-  return `지역을 눌러 확대 · 블록 한 칸 ${distance}`;
+  return '세계 해안선 지도 · 지역을 눌러 확대';
 }
 
 export function MineMap({ latitude, longitude, onSelect }: {
@@ -88,12 +70,22 @@ export function MineMap({ latitude, longitude, onSelect }: {
   onSelect: (lat: number, lng: number) => void;
 }) {
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
-  const [center, setCenter] = useState<Coordinate>({ latitude, longitude });
+  const [center, setCenter] = useState<Coordinate>(WORLD_OVERVIEW_CENTER);
   const [scale, setScale] = useState(MAX_SCALE);
   const centerRef = useRef(center);
   const scaleRef = useRef(scale);
-  const gestureStart = useRef({ center: toMercator(latitude, longitude), scale, pinch: 0 });
+  const gestureStart = useRef({ center: toMercator(WORLD_OVERVIEW_CENTER.latitude, WORLD_OVERVIEW_CENTER.longitude), scale, pinch: 0 });
   const moved = useRef(false);
+  const [pulse] = useState(() => new Animated.Value(0));
+
+  useEffect(() => {
+    const animation = Animated.loop(Animated.sequence([
+      Animated.timing(pulse, { toValue: 1, duration: 3600, useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 0, duration: 3600, useNativeDriver: true }),
+    ]));
+    animation.start();
+    return () => animation.stop();
+  }, [pulse]);
 
   function updateCenter(next: Coordinate) {
     const value = { latitude: clamp(next.latitude, -85, 85), longitude: wrapLongitude(next.longitude) };
@@ -152,25 +144,15 @@ export function MineMap({ latitude, longitude, onSelect }: {
   const detailed = scale <= GRID_THRESHOLD;
   const vertical: number[] = [];
   const horizontal: number[] = [];
-  const tiles: { key: string; left: number; top: number; land: boolean; shade: boolean }[] = [];
 
   if (size.width && detailed) {
     const left = projectedCenter.x - size.width * scale / 2;
     const top = projectedCenter.y + size.height * scale / 2;
     for (let x = Math.ceil(left); x <= left + size.width * scale; x += 1) vertical.push((x - left) / scale);
     for (let y = Math.floor(top); y >= top - size.height * scale; y -= 1) horizontal.push((top - y) / scale);
-  } else if (size.width) {
-    const columns = Math.ceil(size.width / TILE_SIZE) + 2;
-    const rows = Math.ceil(size.height / TILE_SIZE) + 2;
-    for (let row = -1; row < rows; row += 1) {
-      for (let column = -1; column < columns; column += 1) {
-        const left = column * TILE_SIZE;
-        const top = row * TILE_SIZE;
-        const point = coordinateAtViewport(left + TILE_SIZE / 2, top + TILE_SIZE / 2, center, scale, size);
-        tiles.push({ key: `${row}-${column}`, left, top, land: isLand(point.latitude, point.longitude), shade: (row + column) % 3 === 0 });
-      }
-    }
   }
+
+  const paths = detailed || !size.width ? [] : coastlinePaths(projectedCenter, scale, size);
 
   const selectedLeft = size.width / 2 + (Math.floor(selected.x) - projectedCenter.x) / scale;
   const selectedTop = size.height / 2 - (Math.floor(selected.y) + 1 - projectedCenter.y) / scale;
@@ -185,9 +167,13 @@ export function MineMap({ latitude, longitude, onSelect }: {
           <View style={[styles.selected, { left: selectedLeft, top: selectedTop, width: selectedSize, height: selectedSize }]} />
         </View>
       ) : (
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          {tiles.map((tile) => <View key={tile.key} style={[styles.tile, { left: tile.left, top: tile.top }, tile.land ? styles.land : styles.ocean, tile.shade && styles.shade]} />)}
-        </View>
+        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }]}>
+          <Svg width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`}>
+            {paths.map((path) => (
+              <Path key={path.key} d={path.d} fill="#BAF7D0" fillRule="evenodd" stroke="#F7F4FF" strokeWidth={1.25} strokeLinejoin="round" />
+            ))}
+          </Svg>
+        </Animated.View>
       )}
       <View pointerEvents="none" style={styles.hint}><Text style={styles.hintText}>{scaleLabel(scale)}</Text></View>
     </View>
@@ -195,14 +181,10 @@ export function MineMap({ latitude, longitude, onSelect }: {
 }
 
 const styles = StyleSheet.create({
-  wrap: { flex: 1, overflow: 'hidden', backgroundColor: '#DCD8FA' },
+  wrap: { flex: 1, overflow: 'hidden', backgroundColor: '#6551C7' },
   vertical: { position: 'absolute', top: 0, bottom: 0, width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(81,55,232,0.62)' },
   horizontal: { position: 'absolute', left: 0, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(81,55,232,0.62)' },
   selected: { position: 'absolute', borderWidth: 4, borderColor: palette.gold, backgroundColor: 'rgba(113,87,255,0.24)', zIndex: 2 },
-  tile: { position: 'absolute', width: TILE_SIZE - 1, height: TILE_SIZE - 1, borderRadius: 4 },
-  land: { backgroundColor: '#B5F2C9' },
-  ocean: { backgroundColor: '#7563D8' },
-  shade: { opacity: 0.78 },
   hint: { position: 'absolute', top: 104, alignSelf: 'center', backgroundColor: 'rgba(255,255,255,0.94)', borderColor: palette.border, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
   hintText: { color: palette.text, fontSize: 11, fontWeight: '800' },
 });
