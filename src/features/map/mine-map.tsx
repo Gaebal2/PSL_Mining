@@ -43,6 +43,15 @@ function touchDistance(touches: readonly { pageX: number; pageY: number }[]) {
   return touches.length < 2 ? 0 : Math.hypot(touches[0].pageX - touches[1].pageX, touches[0].pageY - touches[1].pageY);
 }
 
+function touchCenter(touches: readonly { pageX: number; pageY: number }[]) {
+  if (!touches.length) return null;
+  const total = touches.reduce((result, touch) => ({
+    x: result.x + touch.pageX,
+    y: result.y + touch.pageY,
+  }), { x: 0, y: 0 });
+  return { x: total.x / touches.length, y: total.y / touches.length };
+}
+
 const LAND_POLYGONS = landData.features.map((feature) => feature.geometry.coordinates.map((ring) => (
   ring.map(([longitude, latitude]) => toMercator(latitude, longitude))
 )));
@@ -74,7 +83,7 @@ export function MineMap({ latitude, longitude, onSelect }: {
   const [scale, setScale] = useState(MAX_SCALE);
   const centerRef = useRef(center);
   const scaleRef = useRef(scale);
-  const gestureStart = useRef({ center: toMercator(WORLD_OVERVIEW_CENTER.latitude, WORLD_OVERVIEW_CENTER.longitude), scale, pinch: 0 });
+  const gestureState = useRef({ touchCount: 0, x: 0, y: 0, distance: 0 });
   const moved = useRef(false);
   const [pulse] = useState(() => new Animated.Value(0));
 
@@ -106,26 +115,45 @@ export function MineMap({ latitude, longitude, onSelect }: {
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: (event) => {
-      gestureStart.current = {
-        center: toMercator(centerRef.current.latitude, centerRef.current.longitude),
-        scale: scaleRef.current,
-        pinch: touchDistance(event.nativeEvent.touches),
+      const touches = event.nativeEvent.touches;
+      const midpoint = touchCenter(touches);
+      gestureState.current = {
+        touchCount: touches.length,
+        x: midpoint?.x ?? 0,
+        y: midpoint?.y ?? 0,
+        distance: touchDistance(touches),
       };
       moved.current = false;
     },
-    onPanResponderMove: (event, gesture) => {
-      if (event.nativeEvent.touches.length >= 2) {
-        const distance = touchDistance(event.nativeEvent.touches);
-        if (!gestureStart.current.pinch) gestureStart.current.pinch = distance;
-        if (distance) updateScale(gestureStart.current.scale * gestureStart.current.pinch / distance);
-        moved.current = true;
+    onPanResponderMove: (event) => {
+      const touches = event.nativeEvent.touches;
+      const midpoint = touchCenter(touches);
+      if (!midpoint) return;
+
+      const previous = gestureState.current;
+      const distance = touchDistance(touches);
+      if (touches.length !== previous.touchCount) {
+        gestureState.current = { touchCount: touches.length, x: midpoint.x, y: midpoint.y, distance };
         return;
       }
-      if (Math.abs(gesture.dx) > 3 || Math.abs(gesture.dy) > 3) moved.current = true;
-      const start = gestureStart.current;
-      updateCenter(fromMercator(start.center.x - gesture.dx * start.scale, start.center.y + gesture.dy * start.scale));
+
+      const dx = midpoint.x - previous.x;
+      const dy = midpoint.y - previous.y;
+      const currentScale = scaleRef.current;
+      const projected = toMercator(centerRef.current.latitude, centerRef.current.longitude);
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) moved.current = true;
+      updateCenter(fromMercator(projected.x - dx * currentScale, projected.y + dy * currentScale));
+
+      if (touches.length >= 2 && previous.distance > 0 && distance > 0) {
+        const nextScale = currentScale * previous.distance / distance;
+        if (Math.abs(nextScale - currentScale) > currentScale * 0.002) moved.current = true;
+        updateScale(nextScale);
+      }
+
+      gestureState.current = { touchCount: touches.length, x: midpoint.x, y: midpoint.y, distance };
     },
     onPanResponderRelease: (event) => {
+      gestureState.current.touchCount = 0;
       if (moved.current) return;
       const point = coordinateAtViewport(event.nativeEvent.locationX, event.nativeEvent.locationY, centerRef.current, scaleRef.current, size);
       if (scaleRef.current > GRID_THRESHOLD) {
@@ -136,6 +164,9 @@ export function MineMap({ latitude, longitude, onSelect }: {
       const projected = toMercator(point.latitude, point.longitude);
       const cellCenter = fromMercator(Math.floor(projected.x) + 0.5, Math.floor(projected.y) + 0.5);
       onSelect(cellCenter.latitude, cellCenter.longitude);
+    },
+    onPanResponderTerminate: () => {
+      gestureState.current.touchCount = 0;
     },
   }), [onSelect, size]);
 
