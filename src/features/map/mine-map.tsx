@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, LayoutChangeEvent, PanResponder, StyleSheet, Text, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import { Animated, LayoutChangeEvent, PanResponder, StyleSheet, View } from 'react-native';
+import Svg, { Circle, ClipPath, Defs, G, Path, RadialGradient, Stop } from 'react-native-svg';
 
 import landData from '@/assets/data/ne-110m-land.json';
 import { GRID_SIZE_METERS } from '@/domain/mining';
@@ -57,7 +57,7 @@ function touchCenter(touches: readonly { pageX: number; pageY: number }[]) {
   return { x: total.x / touches.length, y: total.y / touches.length };
 }
 
-const LAND_POLYGONS = landData.features.map((feature) => feature.geometry.coordinates.map((ring) => {
+const LAND_POLYGONS = landData.features.filter((feature) => feature.bbox[1] > -89).map((feature) => feature.geometry.coordinates.map((ring) => {
   let previousX: number | undefined;
 
   return ring.map(([longitude, latitude]) => {
@@ -76,21 +76,17 @@ const LAND_POLYGONS = landData.features.map((feature) => feature.geometry.coordi
 }));
 
 function coastlinePaths(center: Projected, scale: number, size: Size) {
-  const worldWidth = WORLD_WIDTH_METERS / scale;
-  const centerWorld = Math.round(center.x / WORLD_WIDTH_METERS);
-  return [centerWorld - 1, centerWorld, centerWorld + 1].flatMap((worldOffset) => LAND_POLYGONS.map((rings, polygonIndex) => ({
-    key: `${worldOffset}-${polygonIndex}`,
-    d: rings.map((ring) => ring.map((point, pointIndex) => {
-      const x = size.width / 2 + (point.x - center.x) / scale + worldOffset * worldWidth;
-      const y = size.height / 2 - (point.y - center.y) / scale;
-      return `${pointIndex ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`;
-    }).join(' ') + ' Z').join(' '),
-  })));
-}
-
-function scaleLabel(scale: number) {
-  if (scale <= GRID_THRESHOLD) return '100m × 100m 막장을 눌러 선택하세요';
-  return '두 손가락으로 확대하면 막장 Grid가 표시됩니다';
+  return LAND_POLYGONS.map((rings, polygonIndex) => ({
+    key: `${polygonIndex}`,
+    d: rings.map((ring) => {
+      const worldOffset = Math.round((center.x - ring[0].x) / WORLD_WIDTH_METERS) * WORLD_WIDTH_METERS;
+      return ring.map((point, pointIndex) => {
+        const x = size.width / 2 + (point.x + worldOffset - center.x) / scale;
+        const y = size.height / 2 - (point.y - center.y) / scale;
+        return `${pointIndex ? 'L' : 'M'}${x.toFixed(1)} ${y.toFixed(1)}`;
+      }).join(' ') + ' Z';
+    }).join(' '),
+  }));
 }
 
 export function MineMap({ latitude, longitude, onSelect }: {
@@ -192,6 +188,7 @@ export function MineMap({ latitude, longitude, onSelect }: {
   const projectedCenter = toMercator(center.latitude, center.longitude);
   const selected = toMercator(latitude, longitude);
   const detailed = scale <= GRID_THRESHOLD;
+  const showGlobe = scale >= INITIAL_SCALE * 0.72;
   const vertical: number[] = [];
   const horizontal: number[] = [];
 
@@ -207,6 +204,10 @@ export function MineMap({ latitude, longitude, onSelect }: {
   // takes over once individual mining cells are meaningful.
   const showCoastline = scale >= COASTLINE_THRESHOLD;
   const paths = !showCoastline || !size.width ? [] : coastlinePaths(projectedCenter, scale, size);
+  const globeDiameter = Math.max(0, Math.min(size.width - 32, size.height * 0.58));
+  const globeRadius = globeDiameter / 2;
+  const globeScale = globeDiameter ? WORLD_WIDTH_METERS / globeDiameter : INITIAL_SCALE;
+  const globePaths = showGlobe && size.width ? coastlinePaths(projectedCenter, globeScale, size) : [];
 
   const selectedGridX = Math.floor(selected.x / GRID_SIZE_METERS) * GRID_SIZE_METERS;
   const selectedGridY = Math.floor(selected.y / GRID_SIZE_METERS) * GRID_SIZE_METERS;
@@ -217,7 +218,7 @@ export function MineMap({ latitude, longitude, onSelect }: {
   return (
     <View style={styles.wrap} onLayout={(event: LayoutChangeEvent) => setSize(event.nativeEvent.layout)} {...responder.panHandlers}>
       {detailed ? (
-        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <View style={[StyleSheet.absoluteFill, styles.gridBase]} pointerEvents="none">
           {vertical.map((left) => <View key={`v-${left}`} style={[styles.vertical, { left }]} />)}
           {horizontal.map((top) => <View key={`h-${top}`} style={[styles.horizontal, { top }]} />)}
           <View style={[styles.selected, { left: selectedLeft, top: selectedTop, width: selectedSize, height: selectedSize }]} />
@@ -225,22 +226,35 @@ export function MineMap({ latitude, longitude, onSelect }: {
       ) : (
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }]}>
           <Svg width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`}>
-            {paths.map((path) => (
-              <Path key={path.key} d={path.d} fill="#BAF7D0" fillRule="evenodd" />
-            ))}
+            {showGlobe ? (
+              <>
+                <Defs>
+                  <ClipPath id="globeClip"><Circle cx={size.width / 2} cy={size.height / 2} r={globeRadius} /></ClipPath>
+                  <RadialGradient id="ocean" cx="35%" cy="28%" rx="70%" ry="70%">
+                    <Stop offset="0" stopColor="#8D80E8" /><Stop offset="0.7" stopColor="#6551C7" /><Stop offset="1" stopColor="#2E236E" />
+                  </RadialGradient>
+                  <RadialGradient id="shade" cx="32%" cy="26%" rx="72%" ry="72%">
+                    <Stop offset="0.55" stopColor="#FFFFFF" stopOpacity="0" /><Stop offset="1" stopColor="#110B35" stopOpacity="0.62" />
+                  </RadialGradient>
+                </Defs>
+                <Circle cx={size.width / 2} cy={size.height / 2} r={globeRadius + 5} fill="#292060" opacity={0.45} />
+                <Circle cx={size.width / 2} cy={size.height / 2} r={globeRadius} fill="url(#ocean)" />
+                <G clipPath="url(#globeClip)">{globePaths.map((path) => <Path key={path.key} d={path.d} fill="#BAF7D0" fillRule="evenodd" />)}</G>
+                <Circle cx={size.width / 2} cy={size.height / 2} r={globeRadius} fill="url(#shade)" />
+                <Circle cx={size.width / 2} cy={size.height / 2} r={globeRadius} fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth={2} />
+              </>
+            ) : paths.map((path) => <Path key={path.key} d={path.d} fill="#BAF7D0" fillRule="evenodd" />)}
           </Svg>
         </Animated.View>
       )}
-      <View pointerEvents="none" style={styles.hint}><Text style={styles.hintText}>{scaleLabel(scale)}</Text></View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, overflow: 'hidden', backgroundColor: '#6551C7' },
+  gridBase: { backgroundColor: '#BAF7D0' },
   vertical: { position: 'absolute', top: 0, bottom: 0, width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(81,55,232,0.62)' },
   horizontal: { position: 'absolute', left: 0, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(81,55,232,0.62)' },
   selected: { position: 'absolute', borderWidth: 4, borderColor: palette.gold, backgroundColor: 'rgba(113,87,255,0.24)', zIndex: 2 },
-  hint: { position: 'absolute', top: 104, alignSelf: 'center', backgroundColor: 'rgba(255,255,255,0.94)', borderColor: palette.border, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
-  hintText: { color: palette.text, fontSize: 11, fontWeight: '800' },
 });

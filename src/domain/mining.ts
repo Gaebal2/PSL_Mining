@@ -5,9 +5,9 @@ export const AD_ACTIVE_HOURS = 24;
 export const ABANDONMENT_DAYS = 7;
 export const PSL_PER_WINNING_GRID = 100_000_000;
 export const WINNING_GRID_COUNT = 888;
-export const TOTAL_MINE_COUNT = 510_100_000_000_000;
+export const TOTAL_MINE_COUNT = 51_010_000_000;
 
-export type Pickaxe = 'iron' | 'bronze' | 'silver' | 'gold' | 'diamond';
+export type Pickaxe = 'bareHands' | 'iron' | 'steel' | 'titanium' | 'tungstenCarbide' | 'diamond' | 'rhodium' | 'graphite' | 'carbyne' | 'neutronium' | 'nuclearPasta';
 
 export type GridMine = {
   id: string;
@@ -23,11 +23,22 @@ export type GridMine = {
 };
 
 const PICKAXE_BONUS: Record<Pickaxe, number> = {
-  iron: 0,
-  bronze: 0.2,
-  silver: 0.3,
-  gold: 0.5,
-  diamond: 1,
+  bareHands: 0,
+  iron: 0.1,
+  steel: 0.2,
+  titanium: 0.3,
+  tungstenCarbide: 0.4,
+  diamond: 0.5,
+  rhodium: 0.6,
+  graphite: 0.7,
+  carbyne: 0.8,
+  neutronium: 0.9,
+  nuclearPasta: 1,
+};
+
+export const PICKAXE_NAMES: Record<Pickaxe, string> = {
+  bareHands: '손가락', iron: '철', steel: '강철', titanium: '티타늄', tungstenCarbide: '텅스텐 카바이드',
+  diamond: '다이아몬드', rhodium: '로스트레이트', graphite: '그래핀', carbyne: '카르빈', neutronium: '뉴트로늄', nuclearPasta: '뉴클리어 파스타',
 };
 
 export function levelSpeed(level: number) {
@@ -38,12 +49,12 @@ export function miningSpeed(level: number, pickaxe: Pickaxe) {
   return levelSpeed(level) + PICKAXE_BONUS[pickaxe];
 }
 
+export function referralSpeedBonus(referrals: number) {
+  return Math.min(10, Math.max(0, referrals)) * 0.1;
+}
+
 export function pickaxeForReferrals(referrals: number): Pickaxe {
-  if (referrals >= 10) return 'diamond';
-  if (referrals >= 5) return 'gold';
-  if (referrals >= 3) return 'silver';
-  if (referrals >= 1) return 'bronze';
-  return 'iron';
+  return (['bareHands', 'iron', 'steel', 'titanium', 'tungstenCarbide', 'diamond', 'rhodium', 'graphite', 'carbyne', 'neutronium', 'nuclearPasta'] as const)[Math.min(10, Math.max(0, Math.floor(referrals)))];
 }
 
 export function gridIdFromCoordinate(latitude: number, longitude: number) {

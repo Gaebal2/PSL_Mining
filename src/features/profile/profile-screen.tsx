@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { miningSpeed, pickaxeForReferrals } from '@/domain/mining';
+import { miningSpeed, PICKAXE_NAMES, pickaxeForReferrals, referralSpeedBonus } from '@/domain/mining';
 import { useAppState } from '@/state/app-state';
 import { Button, Card, Header, Metric, Screen } from '@/ui/components';
 import { palette } from '@/ui/theme';
@@ -12,7 +12,6 @@ export function ProfileScreen() {
   const [wallet, setWalletInput] = useState(user.walletAddress);
   const pickaxe = pickaxeForReferrals(user.referrals);
   const currentSpeed = miningSpeed(user.level, pickaxe);
-  const nextLevel = Math.min(10, user.level + 1);
 
   function saveWallet() {
     const normalized = wallet.trim();
@@ -30,10 +29,10 @@ export function ProfileScreen() {
       <Card style={styles.levelCard}>
         <View style={styles.levelHeader}>
           <View>
-            <Text style={styles.levelEyebrow}>노련미 성장 단계</Text>
+            <Text style={styles.levelEyebrow}>숙련도 성장 단계</Text>
             <Text style={styles.levelTitle}>현재 Lv.{user.level} · {currentSpeed.toFixed(1)}m/hr</Text>
           </View>
-          <Text style={styles.levelReferral}>초대 {user.referrals}명</Text>
+          <Text style={styles.levelReferral}>{PICKAXE_NAMES[pickaxe]}</Text>
         </View>
         <View style={styles.levelGauge} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 10, now: user.level }}>
           {Array.from({ length: 11 }, (_, level) => (
@@ -43,8 +42,22 @@ export function ProfileScreen() {
             </View>
           ))}
         </View>
-        <Text style={styles.levelHelp}>기본 1.0 + 노련미 {(user.level * 0.1).toFixed(1)} + 곡괭이 {(currentSpeed - (1 + user.level * 0.1)).toFixed(1)}m/hr</Text>
-        <Text style={styles.levelNext}>{user.level < 10 ? `다음 Lv.${nextLevel} 노련미 속도: ${(1 + nextLevel * 0.1).toFixed(1)}m/hr` : '최고 노련미 단계에 도달했습니다'}</Text>
+        <View style={styles.gaugeDivider} />
+        <View style={styles.levelHeader}>
+          <View>
+            <Text style={styles.levelEyebrow}>초대인원별 채굴속도 증가</Text>
+            <Text style={styles.referralTitle}>현재 +{referralSpeedBonus(user.referrals).toFixed(1)}m/hr</Text>
+          </View>
+          <Text style={styles.levelReferral}>초대인원 {user.referrals}명</Text>
+        </View>
+        <View style={styles.levelGauge} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 10, now: Math.min(10, user.referrals) }}>
+          {Array.from({ length: 11 }, (_, referrals) => (
+            <View key={referrals} style={styles.levelStepWrap}>
+              <View style={[styles.levelStep, referrals <= user.referrals && styles.referralStepActive, referrals === Math.min(10, user.referrals) && styles.levelStepCurrent]} />
+              {(referrals === 0 || referrals === 5 || referrals === 10) && <Text style={styles.levelStepLabel}>{referrals === 10 ? '10명+' : `${referrals}명`}</Text>}
+            </View>
+          ))}
+        </View>
       </Card>
       <Header eyebrow="MINER PROFILE" title={user.name} right={user.piVerified ? <View style={styles.verified}><Text style={styles.verifiedText}>π VERIFIED</Text></View> : null} />
       <Card style={styles.balanceCard}>
@@ -57,7 +70,7 @@ export function ProfileScreen() {
 
       <Card>
         <View style={styles.metrics}>
-          <Metric label="노련미" value={`Lv.${user.level}`} />
+          <Metric label="숙련도" value={`Lv.${user.level}`} />
           <Metric label="채굴속도" value={`${miningSpeed(user.level, pickaxe).toFixed(1)}m/hr`} accent />
         </View>
         <View style={styles.metrics}>
@@ -112,8 +125,9 @@ const styles = StyleSheet.create({
   levelStepActive: { backgroundColor: palette.gold },
   levelStepCurrent: { backgroundColor: palette.goldDark, transform: [{ scaleY: 1.5 }] },
   levelStepLabel: { position: 'absolute', top: 13, alignSelf: 'center', color: palette.muted, fontSize: 8, fontWeight: '700' },
-  levelHelp: { color: palette.text, fontSize: 12, fontWeight: '800' },
-  levelNext: { color: palette.goldDark, fontSize: 11, marginTop: 4, fontWeight: '700' },
+  gaugeDivider: { height: 1, backgroundColor: '#D5CEF5', marginVertical: 16 },
+  referralTitle: { color: palette.text, fontSize: 18, fontWeight: '900', marginTop: 3 },
+  referralStepActive: { backgroundColor: palette.green },
   sectionTitle: { color: palette.text, fontSize: 18, fontWeight: '900' },
   helper: { color: palette.muted, fontSize: 13, lineHeight: 19 },
   input: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.background, color: palette.text, paddingHorizontal: 15, fontSize: 13 },

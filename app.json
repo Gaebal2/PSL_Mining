@@ -5,18 +5,18 @@
     "owner": "clazyman",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/psl-mining-icon.png",
+    "icon": "./assets/images/psl-mining-icon-gold.png",
     "scheme": "pslmining",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/images/psl-mining-icon.png",
+      "icon": "./assets/images/psl-mining-icon-gold.png",
       "bundleIdentifier": "com.gaebal2.pslmining",
       "infoPlist": {}
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#7157FF",
-        "foregroundImage": "./assets/images/psl-mining-icon-foreground.png"
+        "foregroundImage": "./assets/images/psl-mining-icon-gold.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.gaebal2.pslmining"
@@ -31,7 +31,7 @@
         "expo-splash-screen",
         {
           "backgroundColor": "#F4F6FB",
-          "image": "./assets/images/psl-mining-icon.png",
+          "image": "./assets/images/psl-mining-icon-gold.png",
           "imageWidth": 76
         }
       ],

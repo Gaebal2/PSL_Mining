@@ -30,12 +30,16 @@ export function StatusScreen() {
           <View><Text style={styles.smallLabel}>당첨 막장</Text><Text style={styles.smallValue}>888개</Text></View>
           <View><Text style={styles.smallLabel}>막장당 보상</Text><Text style={styles.smallValue}>1억 PSL</Text></View>
         </View>
+        <View style={styles.rewardTier}>
+          <View><Text style={styles.smallLabel}>일반 보상 막장</Text><Text style={styles.smallValue}>1억개</Text></View>
+          <View><Text style={styles.smallLabel}>막장당 보상</Text><Text style={styles.smallValue}>7.2 PSL</Text></View>
+        </View>
       </Card>
 
       <Card>
         <Text style={styles.sectionTitle}>실시간 네트워크</Text>
         <View style={styles.statGrid}>
-          <Stat label="총 막장" value={`약 ${(TOTAL_MINE_COUNT / 1_000_000_000_000).toFixed(1)}조`} />
+          <Stat label="총 막장" value={`${TOTAL_MINE_COUNT.toLocaleString()}개`} />
           <Stat label="채굴 완료 막장" value={completedMineCount.toLocaleString()} />
           <Stat label="채굴 중" value={activeMineCount.toLocaleString()} />
           <Stat label="발견된 광맥" value={`0 / ${WINNING_GRID_COUNT}`} gold />
@@ -68,6 +72,7 @@ const styles = StyleSheet.create({
   heroValue: { color: palette.onHero, fontSize: 30, fontWeight: '900' },
   symbol: { color: '#AFA0FF', fontSize: 13, fontWeight: '900' },
   split: { marginTop: 12, paddingTop: 18, borderTopColor: '#4A435F', borderTopWidth: 1, width: '100%', flexDirection: 'row', justifyContent: 'space-around' },
+  rewardTier: { marginTop: 14, paddingTop: 14, borderTopColor: '#4A435F', borderTopWidth: 1, width: '100%', flexDirection: 'row', justifyContent: 'space-around' },
   smallLabel: { color: '#C8C4D8', fontSize: 11, textAlign: 'center' },
   smallValue: { color: palette.onHero, fontSize: 16, fontWeight: '900', textAlign: 'center', marginTop: 5 },
   sectionTitle: { color: palette.text, fontSize: 18, fontWeight: '900', marginBottom: 4 },

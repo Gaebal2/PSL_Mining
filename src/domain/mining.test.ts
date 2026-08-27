@@ -14,6 +14,8 @@ import {
 
 test('level and referral bonuses follow the confirmed balance table', () => {
   assert.equal(miningSpeed(0, pickaxeForReferrals(0)), 1);
+  assert.equal(miningSpeed(0, pickaxeForReferrals(1)), 1.1);
+  assert.equal(miningSpeed(0, pickaxeForReferrals(5)), 1.5);
   assert.equal(miningSpeed(1, pickaxeForReferrals(0)), 1.1);
   assert.equal(miningSpeed(10, pickaxeForReferrals(0)), 2);
   assert.equal(miningSpeed(10, pickaxeForReferrals(10)), 3);

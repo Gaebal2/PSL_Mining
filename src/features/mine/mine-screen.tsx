@@ -2,12 +2,10 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Alert, StyleSheet, Text, View } from 'react-native';
 
-import { MINE_DEPTH_METERS, miningSpeed, pickaxeForReferrals, remainingTimeLabel, settleMine } from '@/domain/mining';
+import { MINE_DEPTH_METERS, miningSpeed, PICKAXE_NAMES, pickaxeForReferrals, remainingTimeLabel, settleMine } from '@/domain/mining';
 import { useAppState } from '@/state/app-state';
 import { Button, Card, Header, Metric, Screen } from '@/ui/components';
 import { palette } from '@/ui/theme';
-
-const pickaxeNames = { iron: '쇠', bronze: '동', silver: '은', gold: '금', diamond: '다이아몬드' };
 
 export function MineScreen() {
   const { state, currentMine, watchAd, syncProgress, leave } = useAppState();
@@ -67,8 +65,8 @@ export function MineScreen() {
 
       <Card>
         <View style={styles.metrics}>
-          <Metric label="노련미" value={`Lv.${user.level}`} />
-          <Metric label="곡괭이" value={pickaxeNames[pickaxe]} />
+          <Metric label="숙련도" value={`Lv.${user.level}`} />
+          <Metric label="도구" value={PICKAXE_NAMES[pickaxe]} />
           <Metric label="채굴속도" value={`${speed.toFixed(1)}m/hr`} accent />
         </View>
         <Button title="광고 보고 24시간 채굴" onPress={() => { try { watchAd(); } catch (error) { Alert.alert('활성화 실패', String(error)); } }} />
