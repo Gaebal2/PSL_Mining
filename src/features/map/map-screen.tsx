@@ -2,6 +2,7 @@ import { Alert, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MineMap } from '@/features/map/mine-map';
+import { MINE_DEPTH_METERS } from '@/domain/mining';
 import { useAppState } from '@/state/app-state';
 import { Button, Card } from '@/ui/components';
 import { palette } from '@/ui/theme';
@@ -34,7 +35,7 @@ export function MapScreen() {
             <Text style={styles.label}>선택한 1m 격자</Text>
             <Text numberOfLines={1} style={styles.gridId}>{grid.id}</Text>
           </View>
-          <View style={styles.badge}><Text style={styles.badgeText}>{grid.depthMeters.toFixed(1)} / 48m</Text></View>
+          <View style={styles.badge}><Text style={styles.badgeText}>{grid.depthMeters.toFixed(1)} / {MINE_DEPTH_METERS}m</Text></View>
         </View>
         <Button
           title={currentMine && currentMine.id !== grid.id ? '여기서 채굴 다시 시작하기' : '여기서 채굴 시작하기'}

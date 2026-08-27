@@ -11,6 +11,8 @@ export function ProfileScreen() {
   const user = state.user!;
   const [wallet, setWalletInput] = useState(user.walletAddress);
   const pickaxe = pickaxeForReferrals(user.referrals);
+  const currentSpeed = miningSpeed(user.level, pickaxe);
+  const nextLevel = Math.min(10, user.level + 1);
 
   function saveWallet() {
     const normalized = wallet.trim();
@@ -25,6 +27,25 @@ export function ProfileScreen() {
 
   return (
     <Screen>
+      <Card style={styles.levelCard}>
+        <View style={styles.levelHeader}>
+          <View>
+            <Text style={styles.levelEyebrow}>노련미 성장 단계</Text>
+            <Text style={styles.levelTitle}>현재 Lv.{user.level} · {currentSpeed.toFixed(1)}m/hr</Text>
+          </View>
+          <Text style={styles.levelReferral}>초대 {user.referrals}명</Text>
+        </View>
+        <View style={styles.levelGauge} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 10, now: user.level }}>
+          {Array.from({ length: 11 }, (_, level) => (
+            <View key={level} style={styles.levelStepWrap}>
+              <View style={[styles.levelStep, level <= user.level && styles.levelStepActive, level === user.level && styles.levelStepCurrent]} />
+              {(level === 0 || level === 5 || level === 10) && <Text style={styles.levelStepLabel}>Lv.{level}</Text>}
+            </View>
+          ))}
+        </View>
+        <Text style={styles.levelHelp}>기본 1.0 + 노련미 {(user.level * 0.1).toFixed(1)} + 곡괭이 {(currentSpeed - (1 + user.level * 0.1)).toFixed(1)}m/hr</Text>
+        <Text style={styles.levelNext}>{user.level < 10 ? `다음 Lv.${nextLevel} 노련미 속도: ${(1 + nextLevel * 0.1).toFixed(1)}m/hr` : '최고 노련미 단계에 도달했습니다'}</Text>
+      </Card>
       <Header eyebrow="MINER PROFILE" title={user.name} right={user.piVerified ? <View style={styles.verified}><Text style={styles.verifiedText}>π VERIFIED</Text></View> : null} />
       <Card style={styles.balanceCard}>
         <Text style={styles.balanceLabel}>보유 PSL</Text>
@@ -80,6 +101,19 @@ const styles = StyleSheet.create({
   balanceSymbol: { color: '#AFA0FF', fontWeight: '900', marginTop: -8, marginBottom: 6 },
   fee: { color: '#C8C4D8', fontSize: 11, textAlign: 'center' },
   metrics: { flexDirection: 'row', gap: 10, paddingVertical: 3 },
+  levelCard: { backgroundColor: palette.surface2, borderColor: '#D9D1FF' },
+  levelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  levelEyebrow: { color: palette.goldDark, fontSize: 11, fontWeight: '900' },
+  levelTitle: { color: palette.text, fontSize: 20, fontWeight: '900', marginTop: 3 },
+  levelReferral: { color: palette.goldDark, fontSize: 11, fontWeight: '800', backgroundColor: '#FFF', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 10 },
+  levelGauge: { flexDirection: 'row', marginTop: 15, marginBottom: 17, gap: 3 },
+  levelStepWrap: { flex: 1, position: 'relative' },
+  levelStep: { height: 10, borderRadius: 5, backgroundColor: '#DCD8EE' },
+  levelStepActive: { backgroundColor: palette.gold },
+  levelStepCurrent: { backgroundColor: palette.goldDark, transform: [{ scaleY: 1.5 }] },
+  levelStepLabel: { position: 'absolute', top: 13, alignSelf: 'center', color: palette.muted, fontSize: 8, fontWeight: '700' },
+  levelHelp: { color: palette.text, fontSize: 12, fontWeight: '800' },
+  levelNext: { color: palette.goldDark, fontSize: 11, marginTop: 4, fontWeight: '700' },
   sectionTitle: { color: palette.text, fontSize: 18, fontWeight: '900' },
   helper: { color: palette.muted, fontSize: 13, lineHeight: 19 },
   input: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.background, color: palette.text, paddingHorizontal: 15, fontSize: 13 },

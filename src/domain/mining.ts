@@ -1,4 +1,6 @@
-export const MINE_DEPTH_METERS = 48;
+export const GRID_SIZE_METERS = 100;
+export const MINE_DEPTH_METERS = 72;
+export const BASE_MINING_SPEED = 1;
 export const AD_ACTIVE_HOURS = 24;
 export const ABANDONMENT_DAYS = 7;
 export const PSL_PER_WINNING_GRID = 100_000_000;
@@ -29,7 +31,7 @@ const PICKAXE_BONUS: Record<Pickaxe, number> = {
 };
 
 export function levelSpeed(level: number) {
-  return 1 + Math.min(10, Math.max(0, level)) * 0.1;
+  return BASE_MINING_SPEED + Math.min(10, Math.max(0, level)) * 0.1;
 }
 
 export function miningSpeed(level: number, pickaxe: Pickaxe) {
@@ -49,7 +51,7 @@ export function gridIdFromCoordinate(latitude: number, longitude: number) {
   const radius = 6378137;
   const x = radius * longitude * Math.PI / 180;
   const y = radius * Math.log(Math.tan(Math.PI / 4 + clampedLatitude * Math.PI / 360));
-  return `G-${Math.floor(x)}-${Math.floor(y)}`;
+  return `G-${Math.floor(x / GRID_SIZE_METERS)}-${Math.floor(y / GRID_SIZE_METERS)}`;
 }
 
 export function createGrid(latitude: number, longitude: number): GridMine {

@@ -3,12 +3,17 @@ import { Animated, LayoutChangeEvent, PanResponder, StyleSheet, Text, View } fro
 import Svg, { Path } from 'react-native-svg';
 
 import landData from '@/assets/data/ne-110m-land.json';
+import { GRID_SIZE_METERS } from '@/domain/mining';
 import { palette } from '@/ui/theme';
 
 const EARTH_RADIUS = 6_378_137;
-const MIN_SCALE = 0.06;
-const MAX_SCALE = 120_000;
-const GRID_THRESHOLD = 0.8;
+// These are numerical safety rails, not user-facing zoom stops. They sit well
+// outside the useful range of the map so a normal gesture never hits a wall.
+const MIN_SCALE = 0.25;
+const MAX_SCALE = 10_000_000;
+const INITIAL_SCALE = 120_000;
+const GRID_THRESHOLD = GRID_SIZE_METERS / 14;
+const COASTLINE_THRESHOLD = 50;
 const WORLD_WIDTH_METERS = 2 * Math.PI * EARTH_RADIUS;
 const WORLD_OVERVIEW_CENTER = { latitude: 15, longitude: 0 };
 
@@ -52,13 +57,28 @@ function touchCenter(touches: readonly { pageX: number; pageY: number }[]) {
   return { x: total.x / touches.length, y: total.y / touches.length };
 }
 
-const LAND_POLYGONS = landData.features.map((feature) => feature.geometry.coordinates.map((ring) => (
-  ring.map(([longitude, latitude]) => toMercator(latitude, longitude))
-)));
+const LAND_POLYGONS = landData.features.map((feature) => feature.geometry.coordinates.map((ring) => {
+  let previousX: number | undefined;
+
+  return ring.map(([longitude, latitude]) => {
+    const point = toMercator(latitude, longitude);
+
+    // Keep a ring continuous when it crosses the antimeridian. Without this,
+    // SVG closes the polygon across the whole viewport and can draw long,
+    // horizontal seams through the map.
+    if (previousX !== undefined) {
+      while (point.x - previousX > WORLD_WIDTH_METERS / 2) point.x -= WORLD_WIDTH_METERS;
+      while (point.x - previousX < -WORLD_WIDTH_METERS / 2) point.x += WORLD_WIDTH_METERS;
+    }
+    previousX = point.x;
+    return point;
+  });
+}));
 
 function coastlinePaths(center: Projected, scale: number, size: Size) {
   const worldWidth = WORLD_WIDTH_METERS / scale;
-  return [-1, 0, 1].flatMap((worldOffset) => LAND_POLYGONS.map((rings, polygonIndex) => ({
+  const centerWorld = Math.round(center.x / WORLD_WIDTH_METERS);
+  return [centerWorld - 1, centerWorld, centerWorld + 1].flatMap((worldOffset) => LAND_POLYGONS.map((rings, polygonIndex) => ({
     key: `${worldOffset}-${polygonIndex}`,
     d: rings.map((ring) => ring.map((point, pointIndex) => {
       const x = size.width / 2 + (point.x - center.x) / scale + worldOffset * worldWidth;
@@ -69,8 +89,8 @@ function coastlinePaths(center: Projected, scale: number, size: Size) {
 }
 
 function scaleLabel(scale: number) {
-  if (scale <= GRID_THRESHOLD) return '화면을 눌러 1m × 1m 막장 선택';
-  return '세계 해안선 지도 · 지역을 눌러 확대';
+  if (scale <= GRID_THRESHOLD) return '100m × 100m 막장을 눌러 선택하세요';
+  return '두 손가락으로 확대하면 막장 Grid가 표시됩니다';
 }
 
 export function MineMap({ latitude, longitude, onSelect }: {
@@ -80,7 +100,7 @@ export function MineMap({ latitude, longitude, onSelect }: {
 }) {
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
   const [center, setCenter] = useState<Coordinate>(WORLD_OVERVIEW_CENTER);
-  const [scale, setScale] = useState(MAX_SCALE);
+  const [scale, setScale] = useState(INITIAL_SCALE);
   const centerRef = useRef(center);
   const scaleRef = useRef(scale);
   const gestureState = useRef({ touchCount: 0, x: 0, y: 0, distance: 0 });
@@ -156,13 +176,12 @@ export function MineMap({ latitude, longitude, onSelect }: {
       gestureState.current.touchCount = 0;
       if (moved.current) return;
       const point = coordinateAtViewport(event.nativeEvent.locationX, event.nativeEvent.locationY, centerRef.current, scaleRef.current, size);
-      if (scaleRef.current > GRID_THRESHOLD) {
-        updateCenter(point);
-        updateScale(Math.max(0.12, scaleRef.current / 100));
-        return;
-      }
+      if (scaleRef.current > GRID_THRESHOLD) return;
       const projected = toMercator(point.latitude, point.longitude);
-      const cellCenter = fromMercator(Math.floor(projected.x) + 0.5, Math.floor(projected.y) + 0.5);
+      const cellCenter = fromMercator(
+        Math.floor(projected.x / GRID_SIZE_METERS) * GRID_SIZE_METERS + GRID_SIZE_METERS / 2,
+        Math.floor(projected.y / GRID_SIZE_METERS) * GRID_SIZE_METERS + GRID_SIZE_METERS / 2,
+      );
       onSelect(cellCenter.latitude, cellCenter.longitude);
     },
     onPanResponderTerminate: () => {
@@ -179,15 +198,21 @@ export function MineMap({ latitude, longitude, onSelect }: {
   if (size.width && detailed) {
     const left = projectedCenter.x - size.width * scale / 2;
     const top = projectedCenter.y + size.height * scale / 2;
-    for (let x = Math.ceil(left); x <= left + size.width * scale; x += 1) vertical.push((x - left) / scale);
-    for (let y = Math.floor(top); y >= top - size.height * scale; y -= 1) horizontal.push((top - y) / scale);
+    for (let x = Math.ceil(left / GRID_SIZE_METERS) * GRID_SIZE_METERS; x <= left + size.width * scale; x += GRID_SIZE_METERS) vertical.push((x - left) / scale);
+    for (let y = Math.floor(top / GRID_SIZE_METERS) * GRID_SIZE_METERS; y >= top - size.height * scale; y -= GRID_SIZE_METERS) horizontal.push((top - y) / scale);
   }
 
-  const paths = detailed || !size.width ? [] : coastlinePaths(projectedCenter, scale, size);
+  // At street/grid scale the world geometry would be millions of pixels wide.
+  // Skipping it avoids native SVG precision artifacts while zooming; the grid
+  // takes over once individual mining cells are meaningful.
+  const showCoastline = scale >= COASTLINE_THRESHOLD;
+  const paths = !showCoastline || !size.width ? [] : coastlinePaths(projectedCenter, scale, size);
 
-  const selectedLeft = size.width / 2 + (Math.floor(selected.x) - projectedCenter.x) / scale;
-  const selectedTop = size.height / 2 - (Math.floor(selected.y) + 1 - projectedCenter.y) / scale;
-  const selectedSize = 1 / scale;
+  const selectedGridX = Math.floor(selected.x / GRID_SIZE_METERS) * GRID_SIZE_METERS;
+  const selectedGridY = Math.floor(selected.y / GRID_SIZE_METERS) * GRID_SIZE_METERS;
+  const selectedLeft = size.width / 2 + (selectedGridX - projectedCenter.x) / scale;
+  const selectedTop = size.height / 2 - (selectedGridY + GRID_SIZE_METERS - projectedCenter.y) / scale;
+  const selectedSize = GRID_SIZE_METERS / scale;
 
   return (
     <View style={styles.wrap} onLayout={(event: LayoutChangeEvent) => setSize(event.nativeEvent.layout)} {...responder.panHandlers}>
@@ -201,7 +226,7 @@ export function MineMap({ latitude, longitude, onSelect }: {
         <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }]}>
           <Svg width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`}>
             {paths.map((path) => (
-              <Path key={path.key} d={path.d} fill="#BAF7D0" fillRule="evenodd" stroke="#F7F4FF" strokeWidth={1.25} strokeLinejoin="round" />
+              <Path key={path.key} d={path.d} fill="#BAF7D0" fillRule="evenodd" />
             ))}
           </Svg>
         </Animated.View>

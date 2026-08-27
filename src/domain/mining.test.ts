@@ -19,17 +19,18 @@ test('level and referral bonuses follow the confirmed balance table', () => {
   assert.equal(miningSpeed(10, pickaxeForReferrals(10)), 3);
 });
 
-test('the same coordinate always resolves to the same 1m grid id', () => {
+test('coordinates resolve to 100m grid ids', () => {
   assert.equal(gridIdFromCoordinate(37.5665, 126.978), gridIdFromCoordinate(37.5665, 126.978));
-  assert.notEqual(gridIdFromCoordinate(37.5665, 126.978), gridIdFromCoordinate(37.56652, 126.978));
+  assert.equal(gridIdFromCoordinate(37.5665, 126.978), gridIdFromCoordinate(37.56652, 126.978));
+  assert.notEqual(gridIdFromCoordinate(37.5665, 126.978), gridIdFromCoordinate(37.568, 126.978));
 });
 
-test('a level 10 solo miner completes 48m in one 24 hour activation', () => {
+test('a level 10 solo miner reaches 48m of the 72m target in one activation', () => {
   const start = new Date('2026-01-01T00:00:00.000Z');
   const mine = activateWithAd(createGrid(37.5, 127), 'miner-a', start);
   const completed = settleMine(mine, 2, new Date('2026-01-02T00:00:00.000Z'));
   assert.equal(completed.depthMeters, 48);
-  assert.equal(completed.completed, true);
+  assert.equal(completed.completed, false);
 });
 
 test('voluntary exit preserves depth for the next miner', () => {
