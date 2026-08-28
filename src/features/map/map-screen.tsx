@@ -1,30 +1,32 @@
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MineMap } from '@/features/map/mine-map';
 import { MINE_DEPTH_METERS } from '@/domain/mining';
 import { useAppState } from '@/state/app-state';
 import { Button, Card } from '@/ui/components';
+import { useAppDialog } from '@/ui/app-dialog';
 import { palette } from '@/ui/theme';
 
 export function MapScreen() {
   const { state, currentMine, selectGrid, startMining } = useAppState();
   const insets = useSafeAreaInsets();
   const [hasSelectedGrid, setHasSelectedGrid] = useState(false);
+  const showDialog = useAppDialog();
   const grid = state.selectedGrid;
 
   function handleStart(latitude?: number, longitude?: number) {
     try {
       startMining(latitude, longitude);
     } catch (error) {
-      Alert.alert('입장할 수 없습니다', error instanceof Error ? error.message : '다시 시도해 주세요.');
+      showDialog({ title: '입장할 수 없습니다', message: error instanceof Error ? error.message : '다시 시도해 주세요.' });
     }
   }
 
   return (
     <View style={styles.screen}>
-      <MineMap latitude={grid.latitude} longitude={grid.longitude} onSelect={(latitude, longitude) => {
+      <MineMap latitude={grid.latitude} longitude={grid.longitude} mines={state.mines} onSelect={(latitude, longitude) => {
         selectGrid(latitude, longitude);
         setHasSelectedGrid(true);
       }} />
@@ -38,7 +40,7 @@ export function MapScreen() {
       <Card style={styles.selectionCard}>
         <View style={styles.gridRow}>
           <View style={styles.gridCopy}>
-            <Text style={styles.label}>{hasSelectedGrid ? '선택한 100m × 100m 막장' : '채굴할 막장을 선택해 주세요'}</Text>
+            <Text style={styles.label}>{hasSelectedGrid ? grid.completed ? '채굴 완료' : grid.ownerId ? `${grid.ownerName ?? '사용자'} 채굴중` : '선택한 100m × 100m 막장' : '채굴할 막장을 선택해 주세요'}</Text>
             <Text numberOfLines={1} style={styles.gridId}>{hasSelectedGrid ? grid.id : '지도를 확대하면 Grid가 표시됩니다'}</Text>
           </View>
           {hasSelectedGrid ? <View style={styles.badge}><Text style={styles.badgeText}>{grid.depthMeters.toFixed(1)} / {MINE_DEPTH_METERS}m</Text></View> : null}

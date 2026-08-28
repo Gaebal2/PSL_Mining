@@ -3,6 +3,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
 import { AppStateProvider, useAppState } from '@/state/app-state';
+import { AppDialogProvider } from '@/ui/app-dialog';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -37,7 +38,9 @@ function RootNavigator() {
 export default function RootLayout() {
   return (
     <AppStateProvider>
-      <RootNavigator />
+      <AppDialogProvider>
+        <RootNavigator />
+      </AppDialogProvider>
     </AppStateProvider>
   );
 }

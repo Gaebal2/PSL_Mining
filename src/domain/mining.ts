@@ -5,7 +5,15 @@ export const AD_ACTIVE_HOURS = 24;
 export const ABANDONMENT_DAYS = 7;
 export const PSL_PER_WINNING_GRID = 100_000_000;
 export const WINNING_GRID_COUNT = 888;
+export const GENERAL_REWARD_PER_GRID = 8.88;
+export const GENERAL_REWARD_GRID_COUNT = 100_000_000;
+export const TOTAL_PSL_RESERVES = PSL_PER_WINNING_GRID * WINNING_GRID_COUNT + GENERAL_REWARD_PER_GRID * GENERAL_REWARD_GRID_COUNT;
 export const TOTAL_MINE_COUNT = 51_010_000_000;
+export const GRID_COLUMN_COUNT = 312_500;
+export const GRID_ROW_COUNT = 163_232;
+
+const REWARD_PERMUTATION_MULTIPLIER = 2_654_435_761n;
+const REWARD_PERMUTATION_OFFSET = 38_845_986_217n;
 
 export type Pickaxe = 'bareHands' | 'iron' | 'steel' | 'titanium' | 'tungstenCarbide' | 'diamond' | 'rhodium' | 'graphite' | 'carbyne' | 'neutronium' | 'nuclearPasta';
 
@@ -15,11 +23,12 @@ export type GridMine = {
   longitude: number;
   depthMeters: number;
   ownerId: string | null;
+  ownerName: string | null;
   activeUntil: string | null;
   abandonmentAt: string | null;
   lastCalculatedAt: string | null;
   completed: boolean;
-  reward: 'hidden' | 'empty' | 'psl';
+  reward: 'hidden' | 'empty' | 'general' | 'psl';
 };
 
 const PICKAXE_BONUS: Record<Pickaxe, number> = {
@@ -58,20 +67,51 @@ export function pickaxeForReferrals(referrals: number): Pickaxe {
 }
 
 export function gridIdFromCoordinate(latitude: number, longitude: number) {
-  const clampedLatitude = Math.max(-85.05112878, Math.min(85.05112878, latitude));
-  const radius = 6378137;
-  const x = radius * longitude * Math.PI / 180;
-  const y = radius * Math.log(Math.tan(Math.PI / 4 + clampedLatitude * Math.PI / 360));
-  return `G-${Math.floor(x / GRID_SIZE_METERS)}-${Math.floor(y / GRID_SIZE_METERS)}`;
+  const clampedLatitude = Math.max(-90, Math.min(90, latitude));
+  const wrappedLongitude = ((longitude + 180) % 360 + 360) % 360 - 180;
+  const column = Math.min(GRID_COLUMN_COUNT - 1, Math.floor((wrappedLongitude + 180) / 360 * GRID_COLUMN_COUNT));
+  const row = Math.min(GRID_ROW_COUNT - 1, Math.floor((Math.sin(clampedLatitude * Math.PI / 180) + 1) / 2 * GRID_ROW_COUNT));
+  return `G-${column}-${row}`;
+}
+
+export function gridCenterFromId(id: string) {
+  const match = /^G-(\d+)-(\d+)$/.exec(id);
+  if (!match) throw new Error('올바르지 않은 막장 ID입니다.');
+  const column = Number(match[1]);
+  const row = Number(match[2]);
+  if (column >= GRID_COLUMN_COUNT || row >= GRID_ROW_COUNT) throw new Error('막장 범위를 벗어난 ID입니다.');
+  return {
+    latitude: Math.asin((row + 0.5) / GRID_ROW_COUNT * 2 - 1) * 180 / Math.PI,
+    longitude: (column + 0.5) / GRID_COLUMN_COUNT * 360 - 180,
+  };
+}
+
+export function gridIndexFromId(id: string) {
+  const match = /^G-(\d+)-(\d+)$/.exec(id);
+  if (!match) throw new Error('올바르지 않은 막장 ID입니다.');
+  const column = Number(match[1]);
+  const row = Number(match[2]);
+  if (column >= GRID_COLUMN_COUNT || row >= GRID_ROW_COUNT) throw new Error('막장 범위를 벗어난 ID입니다.');
+  return row * GRID_COLUMN_COUNT + column;
+}
+
+export function rewardForGridId(id: string): 'psl' | 'general' | 'empty' {
+  const index = BigInt(gridIndexFromId(id));
+  const rank = (REWARD_PERMUTATION_MULTIPLIER * index + REWARD_PERMUTATION_OFFSET) % BigInt(TOTAL_MINE_COUNT);
+  if (rank < BigInt(WINNING_GRID_COUNT)) return 'psl';
+  if (rank < BigInt(WINNING_GRID_COUNT + GENERAL_REWARD_GRID_COUNT)) return 'general';
+  return 'empty';
 }
 
 export function createGrid(latitude: number, longitude: number): GridMine {
+  const id = gridIdFromCoordinate(latitude, longitude);
+  const center = gridCenterFromId(id);
   return {
-    id: gridIdFromCoordinate(latitude, longitude),
-    latitude,
-    longitude,
+    id,
+    ...center,
     depthMeters: 0,
     ownerId: null,
+    ownerName: null,
     activeUntil: null,
     abandonmentAt: null,
     lastCalculatedAt: null,

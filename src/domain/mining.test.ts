@@ -4,12 +4,20 @@ import test from 'node:test';
 import {
   activateWithAd,
   createGrid,
+  GENERAL_REWARD_GRID_COUNT,
+  GRID_COLUMN_COUNT,
+  GRID_ROW_COUNT,
+  gridCenterFromId,
+  gridIndexFromId,
   gridIdFromCoordinate,
   leaveMine,
   miningSpeed,
   pickaxeForReferrals,
   releaseIfAbandoned,
+  rewardForGridId,
   settleMine,
+  TOTAL_MINE_COUNT,
+  WINNING_GRID_COUNT,
 } from './mining.ts';
 
 test('level and referral bonuses follow the confirmed balance table', () => {
@@ -25,6 +33,21 @@ test('coordinates resolve to 100m grid ids', () => {
   assert.equal(gridIdFromCoordinate(37.5665, 126.978), gridIdFromCoordinate(37.5665, 126.978));
   assert.equal(gridIdFromCoordinate(37.5665, 126.978), gridIdFromCoordinate(37.56652, 126.978));
   assert.notEqual(gridIdFromCoordinate(37.5665, 126.978), gridIdFromCoordinate(37.568, 126.978));
+});
+
+test('the finite global grid contains exactly every declared mine', () => {
+  assert.equal(GRID_COLUMN_COUNT * GRID_ROW_COUNT, TOTAL_MINE_COUNT);
+  assert.equal(gridIndexFromId('G-0-0'), 0);
+  assert.equal(gridIndexFromId(`G-${GRID_COLUMN_COUNT - 1}-${GRID_ROW_COUNT - 1}`), TOTAL_MINE_COUNT - 1);
+  const northEast = gridCenterFromId(`G-${GRID_COLUMN_COUNT - 1}-${GRID_ROW_COUNT - 1}`);
+  assert.equal(gridIdFromCoordinate(northEast.latitude, northEast.longitude), `G-${GRID_COLUMN_COUNT - 1}-${GRID_ROW_COUNT - 1}`);
+});
+
+test('reward allocation reserves exact, non-overlapping rank ranges', () => {
+  assert.equal(WINNING_GRID_COUNT, 888);
+  assert.equal(GENERAL_REWARD_GRID_COUNT, 100_000_000);
+  assert.ok(WINNING_GRID_COUNT + GENERAL_REWARD_GRID_COUNT < TOTAL_MINE_COUNT);
+  assert.ok(['psl', 'general', 'empty'].includes(rewardForGridId('G-0-0')));
 });
 
 test('a level 10 solo miner reaches 48m of the 72m target in one activation', () => {

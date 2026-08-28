@@ -1,16 +1,18 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { MINE_DEPTH_METERS, miningSpeed, PICKAXE_NAMES, pickaxeForReferrals, remainingTimeLabel, settleMine } from '@/domain/mining';
 import { useAppState } from '@/state/app-state';
 import { Button, Card, Header, Metric, Screen } from '@/ui/components';
+import { useAppDialog } from '@/ui/app-dialog';
 import { palette } from '@/ui/theme';
 
 export function MineScreen() {
   const { state, currentMine, watchAd, syncProgress, leave } = useAppState();
   const [, setClock] = useState(0);
   const user = state.user!;
+  const showDialog = useAppDialog();
   const pickaxe = pickaxeForReferrals(user.referrals);
   const speed = miningSpeed(user.level, pickaxe);
   const displayed = currentMine ? settleMine(currentMine, speed) : null;
@@ -40,10 +42,10 @@ export function MineScreen() {
   const progress = displayed.depthMeters / MINE_DEPTH_METERS;
 
   function confirmLeave() {
-    Alert.alert('막장에서 나갈까요?', '현재 깊이는 막장 ID에 보존되며 다음 광부가 이어서 채굴합니다.', [
+    showDialog({ title: '막장에서 나갈까요?', message: '현재 깊이는 막장 ID에 보존되며 다음 광부가 이어서 채굴합니다.', actions: [
       { text: '계속 채굴', style: 'cancel' },
       { text: '막장 나가기', style: 'destructive', onPress: leave },
-    ]);
+    ] });
   }
 
   return (
@@ -69,7 +71,7 @@ export function MineScreen() {
           <Metric label="도구" value={PICKAXE_NAMES[pickaxe]} />
           <Metric label="채굴속도" value={`${speed.toFixed(1)}m/hr`} accent />
         </View>
-        <Button title="광고 보고 24시간 채굴" onPress={() => { try { watchAd(); } catch (error) { Alert.alert('활성화 실패', String(error)); } }} />
+        <Button title="광고 보고 24시간 채굴" onPress={() => { try { watchAd(); } catch (error) { showDialog({ title: '활성화 실패', message: String(error) }); } }} />
         <Button title="막장에서 나가기" secondary onPress={confirmLeave} />
       </Card>
 

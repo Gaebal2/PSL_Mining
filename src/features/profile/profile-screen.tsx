@@ -1,27 +1,29 @@
 import { useState } from 'react';
-import { Alert, StyleSheet, Text, TextInput, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { miningSpeed, PICKAXE_NAMES, pickaxeForReferrals, referralSpeedBonus } from '@/domain/mining';
 import { useAppState } from '@/state/app-state';
 import { Button, Card, Header, Metric, Screen } from '@/ui/components';
+import { useAppDialog } from '@/ui/app-dialog';
 import { palette } from '@/ui/theme';
 
 export function ProfileScreen() {
   const { state, setWallet, withdrawAll, logout } = useAppState();
   const user = state.user!;
+  const showDialog = useAppDialog();
   const [wallet, setWalletInput] = useState(user.walletAddress);
   const pickaxe = pickaxeForReferrals(user.referrals);
   const currentSpeed = miningSpeed(user.level, pickaxe);
 
   function saveWallet() {
     const normalized = wallet.trim();
-    if (normalized && normalized.length !== 44) return Alert.alert('주소를 확인해 주세요', 'SASEUL 지갑 주소는 44자리여야 합니다.');
+    if (normalized && normalized.length !== 44) return showDialog({ title: '주소를 확인해 주세요', message: 'SASEUL 지갑 주소는 44자리여야 합니다.' });
     setWallet(normalized);
-    Alert.alert('저장 완료', normalized ? 'PSL_Wallet 주소가 등록되었습니다.' : '등록된 주소를 삭제했습니다.');
+    showDialog({ title: '저장 완료', message: normalized ? 'PSL_Wallet 주소가 등록되었습니다.' : '등록된 주소를 삭제했습니다.' });
   }
 
   async function handleWithdraw() {
-    try { await withdrawAll(); } catch (error) { Alert.alert('출금 안내', error instanceof Error ? error.message : '출금을 진행할 수 없습니다.'); }
+    try { await withdrawAll(); } catch (error) { showDialog({ title: '출금 안내', message: error instanceof Error ? error.message : '출금을 진행할 수 없습니다.' }); }
   }
 
   return (
@@ -77,7 +79,7 @@ export function ProfileScreen() {
           <Metric label="초대한 친구" value={`${user.referrals}명`} />
           <Metric label="완료 막장" value={`${user.completedMines}개`} />
         </View>
-        <Button title="친구 초대하기" secondary onPress={() => Alert.alert('초대 링크', '운영 백엔드 연결 후 개인 추천 링크가 생성됩니다.')} />
+        <Button title="친구 초대하기" secondary onPress={() => showDialog({ title: '초대 링크', message: '운영 백엔드 연결 후 개인 추천 링크가 생성됩니다.' })} />
       </Card>
 
       <Card>

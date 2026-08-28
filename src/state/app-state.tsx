@@ -5,11 +5,14 @@ import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useSt
 import {
   activateWithAd,
   createGrid,
+  GENERAL_REWARD_PER_GRID,
   GridMine,
   leaveMine,
   miningSpeed,
   pickaxeForReferrals,
+  PSL_PER_WINNING_GRID,
   releaseIfAbandoned,
+  rewardForGridId,
   settleMine,
 } from '@/domain/mining';
 
@@ -57,7 +60,19 @@ export function AppStateProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
-      .then((value) => value && setState(JSON.parse(value)))
+      .then((value) => {
+        if (!value) return;
+        const stored = JSON.parse(value) as State;
+        const migrateMine = (mine: GridMine) => {
+          const canonical = createGrid(mine.latitude, mine.longitude);
+          return { ...mine, id: canonical.id, latitude: canonical.latitude, longitude: canonical.longitude, ownerName: mine.ownerName ?? null };
+        };
+        const mines = Object.fromEntries(Object.values(stored.mines ?? {}).map((mine) => {
+          const migrated = migrateMine(mine);
+          return [migrated.id, migrated];
+        }));
+        setState({ ...stored, selectedGrid: migrateMine(stored.selectedGrid), mines });
+      })
       .finally(() => setHydrated(true));
   }, []);
 
@@ -133,6 +148,7 @@ export function AppStateProvider({ children }: PropsWithChildren) {
     const next = {
       ...stored,
       ownerId: state.user.id,
+      ownerName: state.user.name,
       abandonmentAt: new Date(now.getTime() + 7 * 86_400_000).toISOString(),
     };
     setState((previous) => {
@@ -161,7 +177,7 @@ export function AppStateProvider({ children }: PropsWithChildren) {
     const next = settleMine(currentMine, speed);
     const newlyCompleted = !currentMine.completed && next.completed;
     const completedMine = newlyCompleted
-      ? { ...next, reward: next.id === 'G-14135037-4518366' ? 'psl' as const : 'empty' as const, ownerId: null, activeUntil: null, abandonmentAt: null }
+      ? { ...next, reward: rewardForGridId(next.id), ownerId: null, activeUntil: null, abandonmentAt: null }
       : next;
     setState((previous) => ({
       ...previous,
@@ -171,7 +187,7 @@ export function AppStateProvider({ children }: PropsWithChildren) {
         ...previous.user,
         level: Math.min(10, previous.user.level + 1),
         completedMines: previous.user.completedMines + 1,
-        pslBalance: previous.user.pslBalance + (completedMine.reward === 'psl' ? 100_000_000 : 0),
+        pslBalance: previous.user.pslBalance + (completedMine.reward === 'psl' ? PSL_PER_WINNING_GRID : completedMine.reward === 'general' ? GENERAL_REWARD_PER_GRID : 0),
       } : previous.user,
     }));
   }
