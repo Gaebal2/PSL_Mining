@@ -3,5 +3,11 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
+  },
+  "files.exclude": {
+    "**/.gradle-local": true
+  },
+  "files.watcherExclude": {
+    "**/.gradle-local/**": true
   }
 }
