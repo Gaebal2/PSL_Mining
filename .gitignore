@@ -6,6 +6,7 @@ node_modules/
 # Expo
 .expo/
 .gradle-local/
+.gradle-user/
 .android-local/
 dist/
 web-build/

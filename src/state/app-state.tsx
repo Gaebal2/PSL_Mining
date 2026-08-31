@@ -7,11 +7,9 @@ import {
   createGrid,
   GENERAL_REWARD_PER_GRID,
   GridMine,
-  leaveMine,
   miningSpeed,
   pickaxeForReferrals,
   PSL_PER_WINNING_GRID,
-  releaseIfAbandoned,
   rewardForGridId,
   settleMine,
 } from '@/domain/mining';
@@ -44,7 +42,6 @@ type AppContextValue = {
   startMining: (latitude?: number, longitude?: number) => void;
   watchAd: () => void;
   syncProgress: () => void;
-  leave: () => void;
   setWallet: (address: string) => void;
   withdrawAll: () => Promise<void>;
 };
@@ -65,7 +62,7 @@ export function AppStateProvider({ children }: PropsWithChildren) {
         const stored = JSON.parse(value) as State;
         const migrateMine = (mine: GridMine) => {
           const canonical = createGrid(mine.latitude, mine.longitude);
-          return { ...mine, id: canonical.id, latitude: canonical.latitude, longitude: canonical.longitude, ownerName: mine.ownerName ?? null };
+          return { ...mine, id: canonical.id, latitude: canonical.latitude, longitude: canonical.longitude, ownerName: mine.ownerName ?? null, miningSpeed: mine.miningSpeed ?? null };
         };
         const mines = Object.fromEntries(Object.values(stored.mines ?? {}).map((mine) => {
           const migrated = migrateMine(mine);
@@ -79,26 +76,6 @@ export function AppStateProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (hydrated) AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [hydrated, state]);
-
-  useEffect(() => {
-    if (!hydrated) return;
-    const releaseStaleMines = () => {
-      setState((previous) => {
-        if (!previous.user) return previous;
-        const currentSpeed = miningSpeed(previous.user.level, pickaxeForReferrals(previous.user.referrals));
-        let changed = false;
-        const mines = Object.fromEntries(Object.entries(previous.mines).map(([id, mine]) => {
-          const released = releaseIfAbandoned(mine, currentSpeed);
-          if (released !== mine) changed = true;
-          return [id, released];
-        }));
-        return changed ? { ...previous, mines } : previous;
-      });
-    };
-    releaseStaleMines();
-    const timer = setInterval(releaseStaleMines, 60_000);
-    return () => clearInterval(timer);
-  }, [hydrated]);
 
   const currentMine = useMemo(() => {
     if (!state.user) return null;
@@ -141,23 +118,20 @@ export function AppStateProvider({ children }: PropsWithChildren) {
       ? createGrid(latitude, longitude)
       : state.selectedGrid;
     const stored = state.mines[requested.id] ?? requested;
+    const activeMine = Object.values(state.mines).find((mine) => mine.ownerId === state.user?.id && !mine.completed);
+    if (activeMine && activeMine.id !== stored.id) throw new Error(`현재 막장 ${activeMine.id}를 72m까지 완료해야 다른 Grid에서 채굴할 수 있습니다.`);
     if (stored.ownerId && stored.ownerId !== state.user.id) throw new Error('다른 광부가 채굴 중인 막장입니다.');
     if (stored.completed) throw new Error('이미 채굴 완료된 막장입니다.');
 
-    const now = new Date();
-    const next = {
+    const next = activateWithAd({
       ...stored,
       ownerId: state.user.id,
       ownerName: state.user.name,
-      abandonmentAt: new Date(now.getTime() + 7 * 86_400_000).toISOString(),
-    };
+      miningSpeed: speed,
+      abandonmentAt: null,
+    }, state.user.id);
     setState((previous) => {
       const mines = { ...previous.mines };
-      const activeMine = Object.values(mines).find((mine) => mine.ownerId === previous.user?.id);
-      if (activeMine && activeMine.id !== next.id) {
-        const settled = leaveMine(activeMine, speed, now);
-        mines[settled.id] = settled;
-      }
       mines[next.id] = next;
       return { ...previous, selectedGrid: next, mines };
     });
@@ -192,13 +166,6 @@ export function AppStateProvider({ children }: PropsWithChildren) {
     }));
   }
 
-  function leave() {
-    if (!currentMine) return;
-    const next = leaveMine(currentMine, speed);
-    setState((previous) => ({ ...previous, selectedGrid: next, mines: { ...previous.mines, [next.id]: next } }));
-    router.push('/(tabs)/map');
-  }
-
   function setWallet(walletAddress: string) {
     setState((previous) => previous.user ? { ...previous, user: { ...previous.user, walletAddress } } : previous);
   }
@@ -209,7 +176,7 @@ export function AppStateProvider({ children }: PropsWithChildren) {
   }
 
   return (
-    <AppContext.Provider value={{ state, hydrated, currentMine, login, logout, selectGrid, startMining, watchAd, syncProgress, leave, setWallet, withdrawAll }}>
+    <AppContext.Provider value={{ state, hydrated, currentMine, login, logout, selectGrid, startMining, watchAd, syncProgress, setWallet, withdrawAll }}>
       {children}
     </AppContext.Provider>
   );

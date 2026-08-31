@@ -2,15 +2,14 @@ export const GRID_SIZE_METERS = 100;
 export const MINE_DEPTH_METERS = 72;
 export const BASE_MINING_SPEED = 1;
 export const AD_ACTIVE_HOURS = 24;
-export const ABANDONMENT_DAYS = 7;
 export const PSL_PER_WINNING_GRID = 100_000_000;
 export const WINNING_GRID_COUNT = 888;
 export const GENERAL_REWARD_PER_GRID = 8.88;
 export const GENERAL_REWARD_GRID_COUNT = 100_000_000;
 export const TOTAL_PSL_RESERVES = PSL_PER_WINNING_GRID * WINNING_GRID_COUNT + GENERAL_REWARD_PER_GRID * GENERAL_REWARD_GRID_COUNT;
-export const TOTAL_MINE_COUNT = 51_010_000_000;
-export const GRID_COLUMN_COUNT = 312_500;
-export const GRID_ROW_COUNT = 163_232;
+export const TOTAL_MINE_COUNT = 10_000_000_000;
+export const GRID_COLUMN_COUNT = 125_000;
+export const GRID_ROW_COUNT = 80_000;
 
 const REWARD_PERMUTATION_MULTIPLIER = 2_654_435_761n;
 const REWARD_PERMUTATION_OFFSET = 38_845_986_217n;
@@ -24,6 +23,7 @@ export type GridMine = {
   depthMeters: number;
   ownerId: string | null;
   ownerName: string | null;
+  miningSpeed: number | null;
   activeUntil: string | null;
   abandonmentAt: string | null;
   lastCalculatedAt: string | null;
@@ -46,7 +46,7 @@ const PICKAXE_BONUS: Record<Pickaxe, number> = {
 };
 
 export const PICKAXE_NAMES: Record<Pickaxe, string> = {
-  bareHands: '손가락', iron: '철', steel: '강철', titanium: '티타늄', tungstenCarbide: '텅스텐 카바이드',
+  bareHands: '숟가락', iron: '철', steel: '강철', titanium: '티타늄', tungstenCarbide: '텅스텐 카바이드',
   diamond: '다이아몬드', rhodium: '로스트레이트', graphite: '그래핀', carbyne: '카르빈', neutronium: '뉴트로늄', nuclearPasta: '뉴클리어 파스타',
 };
 
@@ -112,6 +112,7 @@ export function createGrid(latitude: number, longitude: number): GridMine {
     depthMeters: 0,
     ownerId: null,
     ownerName: null,
+    miningSpeed: null,
     activeUntil: null,
     abandonmentAt: null,
     lastCalculatedAt: null,
@@ -134,24 +135,19 @@ export function activateWithAd(mine: GridMine, userId: string, now = new Date())
   if (mine.ownerId && mine.ownerId !== userId) throw new Error('다른 광부가 채굴 중인 막장입니다.');
   if (mine.completed) throw new Error('이미 채굴 완료된 막장입니다.');
   const activeUntil = new Date(now.getTime() + AD_ACTIVE_HOURS * 3_600_000);
-  const abandonmentAt = new Date(activeUntil.getTime() + ABANDONMENT_DAYS * 86_400_000);
   return {
     ...mine,
     ownerId: userId,
     activeUntil: activeUntil.toISOString(),
-    abandonmentAt: abandonmentAt.toISOString(),
+    abandonmentAt: null,
     lastCalculatedAt: now.toISOString(),
   };
 }
 
 export function leaveMine(mine: GridMine, speed: number, now = new Date()): GridMine {
   const settled = settleMine(mine, speed, now);
+  if (!settled.completed) throw new Error('72m 채굴을 완료하기 전에는 막장에서 나갈 수 없습니다.');
   return { ...settled, ownerId: null, activeUntil: null, abandonmentAt: null, lastCalculatedAt: null };
-}
-
-export function releaseIfAbandoned(mine: GridMine, speed: number, now = new Date()): GridMine {
-  if (!mine.abandonmentAt || now.getTime() < new Date(mine.abandonmentAt).getTime()) return mine;
-  return leaveMine(mine, speed, now);
 }
 
 export function remainingTimeLabel(mine: GridMine, now = new Date()) {

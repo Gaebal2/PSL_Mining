@@ -12,8 +12,8 @@ import {
   gridIdFromCoordinate,
   leaveMine,
   miningSpeed,
+  PICKAXE_NAMES,
   pickaxeForReferrals,
-  releaseIfAbandoned,
   rewardForGridId,
   settleMine,
   TOTAL_MINE_COUNT,
@@ -21,6 +21,7 @@ import {
 } from './mining.ts';
 
 test('level and referral bonuses follow the confirmed balance table', () => {
+  assert.equal(PICKAXE_NAMES[pickaxeForReferrals(0)], '숟가락');
   assert.equal(miningSpeed(0, pickaxeForReferrals(0)), 1);
   assert.equal(miningSpeed(0, pickaxeForReferrals(1)), 1.1);
   assert.equal(miningSpeed(0, pickaxeForReferrals(5)), 1.5);
@@ -36,6 +37,7 @@ test('coordinates resolve to 100m grid ids', () => {
 });
 
 test('the finite global grid contains exactly every declared mine', () => {
+  assert.equal(TOTAL_MINE_COUNT, 10_000_000_000);
   assert.equal(GRID_COLUMN_COUNT * GRID_ROW_COUNT, TOTAL_MINE_COUNT);
   assert.equal(gridIndexFromId('G-0-0'), 0);
   assert.equal(gridIndexFromId(`G-${GRID_COLUMN_COUNT - 1}-${GRID_ROW_COUNT - 1}`), TOTAL_MINE_COUNT - 1);
@@ -58,24 +60,49 @@ test('a level 10 solo miner reaches 48m of the 72m target in one activation', ()
   assert.equal(completed.completed, false);
 });
 
-test('voluntary exit preserves depth for the next miner', () => {
-  const start = new Date('2026-01-01T00:00:00.000Z');
-  const mine = activateWithAd(createGrid(37.5, 127), 'miner-a', start);
-  const released = leaveMine(mine, 1, new Date('2026-01-01T05:00:00.000Z'));
-  assert.equal(released.depthMeters, 5);
-  assert.equal(released.ownerId, null);
+test('a base-speed miner completes one grid after three 24-hour rewarded-ad sessions', () => {
+  const firstStart = new Date('2026-01-01T00:00:00.000Z');
+  const afterFirst = settleMine(
+    activateWithAd(createGrid(37.5, 127), 'miner-a', firstStart),
+    1,
+    new Date('2026-01-02T00:00:00.000Z'),
+  );
+  assert.equal(afterFirst.depthMeters, 24);
+  assert.equal(afterFirst.completed, false);
 
-  const resumed = activateWithAd(released, 'miner-b', new Date('2026-01-01T06:00:00.000Z'));
-  const progressed = settleMine(resumed, 1, new Date('2026-01-01T07:00:00.000Z'));
-  assert.equal(progressed.depthMeters, 6);
+  const secondStart = new Date('2026-01-02T01:00:00.000Z');
+  const afterSecond = settleMine(
+    activateWithAd(afterFirst, 'miner-a', secondStart),
+    1,
+    new Date('2026-01-03T01:00:00.000Z'),
+  );
+  assert.equal(afterSecond.depthMeters, 48);
+  assert.equal(afterSecond.completed, false);
+
+  const thirdStart = new Date('2026-01-03T02:00:00.000Z');
+  const completed = settleMine(
+    activateWithAd(afterSecond, 'miner-a', thirdStart),
+    1,
+    new Date('2026-01-04T02:00:00.000Z'),
+  );
+  assert.equal(completed.depthMeters, 72);
+  assert.equal(completed.completed, true);
 });
 
-test('abandonment releases after active 24 hours plus 7 days without erasing depth', () => {
+test('a miner cannot leave before reaching the full 72m depth', () => {
   const start = new Date('2026-01-01T00:00:00.000Z');
   const mine = activateWithAd(createGrid(37.5, 127), 'miner-a', start);
-  const beforeDeadline = releaseIfAbandoned(mine, 1, new Date('2026-01-08T23:59:59.000Z'));
-  assert.equal(beforeDeadline.ownerId, 'miner-a');
-  const released = releaseIfAbandoned(mine, 1, new Date('2026-01-09T00:00:00.000Z'));
+  assert.throws(
+    () => leaveMine(mine, 1, new Date('2026-01-01T05:00:00.000Z')),
+    /72m 채굴을 완료하기 전/,
+  );
+});
+
+test('a completed 72m mine can be released', () => {
+  const start = new Date('2026-01-01T00:00:00.000Z');
+  const mine = activateWithAd(createGrid(37.5, 127), 'miner-a', start);
+  const released = leaveMine(mine, 3, new Date('2026-01-02T00:00:00.000Z'));
   assert.equal(released.ownerId, null);
-  assert.equal(released.depthMeters, 24);
+  assert.equal(released.depthMeters, 72);
+  assert.equal(released.completed, true);
 });
