@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { LayoutChangeEvent, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MineMap } from '@/features/map/mine-map';
@@ -14,6 +14,7 @@ export function MapScreen() {
   const insets = useSafeAreaInsets();
   const [hasSelectedGrid, setHasSelectedGrid] = useState(false);
   const [focusTarget, setFocusTarget] = useState<{ latitude: number; longitude: number; nonce: number }>();
+  const [cardHeight, setCardHeight] = useState(0);
   const showDialog = useAppDialog();
   const grid = state.selectedGrid;
   const progress = Math.min(100, grid.depthMeters / MINE_DEPTH_METERS * 100);
@@ -37,10 +38,12 @@ export function MapScreen() {
 
   return (
     <View style={styles.screen}>
-      <MineMap key={focusTarget?.nonce ?? 0} latitude={grid.latitude} longitude={grid.longitude} mines={state.mines} currentMineId={currentMine?.id} focusTarget={focusTarget} onSelect={(latitude, longitude) => {
-        selectGrid(latitude, longitude);
-        setHasSelectedGrid(true);
-      }} />
+      <View style={[styles.mapViewport, { bottom: cardHeight ? cardHeight + 28 : 0 }]}>
+        <MineMap key={focusTarget?.nonce ?? 0} latitude={grid.latitude} longitude={grid.longitude} mines={state.mines} currentMineId={currentMine?.id} focusTarget={focusTarget} onSelect={(latitude, longitude) => {
+          selectGrid(latitude, longitude);
+          setHasSelectedGrid(true);
+        }} />
+      </View>
       <View pointerEvents="none" style={[styles.titleOverlay, { top: insets.top + 12 }]}>
         <Text style={styles.eyebrow}>PSL MINING PLANET</Text>
         <View style={styles.titleRow}>
@@ -52,7 +55,8 @@ export function MapScreen() {
           <Text style={styles.rangeText}>채굴 가능 범위 · 전 세계 {TOTAL_MINE_COUNT.toLocaleString()} Grid</Text>
         </View>
       </View>
-      <Card style={styles.selectionCard}>
+      <View style={styles.selectionCard} onLayout={(event: LayoutChangeEvent) => setCardHeight(event.nativeEvent.layout.height)}>
+      <Card>
         <View style={styles.gridRow}>
           <View style={styles.gridCopy}>
             <Text style={styles.label}>{hasSelectedGrid ? grid.completed ? '채굴 완료' : grid.ownerId ? `${grid.ownerName ?? '사용자'} 채굴중` : '선택한 100m × 100m 막장' : '채굴할 막장을 선택해 주세요'}</Text>
@@ -94,12 +98,14 @@ export function MapScreen() {
           disabled={currentMine && !currentMine.completed ? false : !hasSelectedGrid || grid.completed || blockedByCurrentMine || Boolean(grid.ownerId && grid.ownerId !== state.user?.id)}
         />
       </Card>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.background },
+  mapViewport: { position: 'absolute', left: 0, right: 0, top: 0 },
   titleOverlay: { position: 'absolute', left: 18, right: 18, backgroundColor: 'rgba(255,255,255,0.94)', borderColor: palette.border, borderWidth: 1, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 12 },
   eyebrow: { color: palette.gold, fontSize: 10, letterSpacing: 1.8, fontWeight: '800' },
   titleRow: { marginTop: 3, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -110,7 +116,7 @@ const styles = StyleSheet.create({
   rangeRow: { marginTop: 8, flexDirection: 'row', alignItems: 'center', gap: 7 },
   rangeSwatch: { width: 12, height: 12, borderRadius: 3, backgroundColor: 'rgba(113,87,255,0.2)', borderWidth: 2, borderColor: palette.gold },
   rangeText: { color: palette.muted, fontSize: 10, fontWeight: '800' },
-  selectionCard: { position: 'absolute', left: 14, right: 14, bottom: 14, borderRadius: 20, padding: 14 },
+  selectionCard: { position: 'absolute', left: 14, right: 14, bottom: 14 },
   gridRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   gridCopy: { flex: 1 },
   label: { color: palette.muted, fontSize: 11, marginBottom: 4 },

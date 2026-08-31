@@ -58,6 +58,7 @@ export function MineMap({ latitude, longitude, mines, currentMineId, focusTarget
   const centerRef = useRef(center);
   const scaleRef = useRef(scale);
   const gesture = useRef({ touchCount: 0, x: 0, y: 0, distance: 0 });
+  const mapPageOrigin = useRef({ x: 0, y: 0 });
   const moved = useRef(false);
   const [pulse] = useState(() => new Animated.Value(0));
   const minimumScale = size.width ? GRID_WIDTH_METERS * 10 / size.width : GRID_WIDTH_METERS;
@@ -109,7 +110,9 @@ export function MineMap({ latitude, longitude, mines, currentMineId, focusTarget
     },
     onPanResponderRelease: (event) => {
       gesture.current.touchCount = 0; if (moved.current || scaleRef.current > GRID_VISIBLE_SCALE) return;
-      const point = coordinateAtViewport(event.nativeEvent.locationX, event.nativeEvent.locationY, centerRef.current, scaleRef.current, size);
+      const localX = event.nativeEvent.pageX - mapPageOrigin.current.x;
+      const localY = event.nativeEvent.pageY - mapPageOrigin.current.y;
+      const point = coordinateAtViewport(localX, localY, centerRef.current, scaleRef.current, size);
       const cell = gridCenterFromId(gridIdFromCoordinate(point.latitude, point.longitude)); onSelect(cell.latitude, cell.longitude);
     },
     onPanResponderTerminate: () => { gesture.current.touchCount = 0; },
@@ -140,7 +143,16 @@ export function MineMap({ latitude, longitude, mines, currentMineId, focusTarget
   const currentLeft = currentPoint ? size.width / 2 + (currentPoint.x - projectedCenter.x) / scale : 0;
   const currentTop = currentPoint ? size.height / 2 - (currentPoint.y - projectedCenter.y) / scale : 0;
 
-  return <View style={styles.wrap} onLayout={handleLayout} {...responder.panHandlers}>
+  return <View
+    style={styles.wrap}
+    onLayout={handleLayout}
+    onTouchStart={(event) => {
+      mapPageOrigin.current = {
+        x: event.nativeEvent.pageX - event.nativeEvent.locationX,
+        y: event.nativeEvent.pageY - event.nativeEvent.locationY,
+      };
+    }}
+    {...responder.panHandlers}>
     <Image source={require('../../../assets/images/mine-world-map.png')} resizeMode="stretch" style={[styles.worldMap, { left: worldLeft, top: worldTop, width: worldWidth, height: worldHeight }]} />
     {detailed ? <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       {vertical.map((left) => <View key={`v-${left}`} style={[styles.vertical, { left }]} />)}
