@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MineMap } from '@/features/map/mine-map';
 import { createGrid, gridCenterFromId, gridIdFromCoordinate, MINE_DEPTH_METERS } from '@/domain/mining';
 import { useAppState } from '@/state/app-state';
+import { useLocale } from '@/state/locale';
 import { Button, Card } from '@/ui/components';
 import { useAppDialog } from '@/ui/app-dialog';
 import { palette } from '@/ui/theme';
@@ -24,6 +25,7 @@ export function MapScreen() {
     left: 32,
   }), [cardHeight, insets.top, titleHeight]);
   const showDialog = useAppDialog();
+  const { t } = useLocale();
   const grid = selectedGridId
     ? state.mines[selectedGridId] ?? (state.selectedGrid.id === selectedGridId ? state.selectedGrid : (() => {
       const center = gridCenterFromId(selectedGridId);
@@ -35,11 +37,21 @@ export function MapScreen() {
   const blockedByCurrentMine = Boolean(currentMine && currentMine.id !== grid.id && !currentMine.completed);
 
   function handleStart(latitude?: number, longitude?: number) {
-    try {
-      startMining(latitude, longitude);
-    } catch (error) {
-      showDialog({ title: '입장할 수 없습니다', message: error instanceof Error ? error.message : '다시 시도해 주세요.' });
-    }
+    showDialog({
+      title: t('리워드 광고', 'Rewarded ad'),
+      message: t('광고를 끝까지 시청하면 선택한 Grid에서 채굴을 시작합니다.', 'Mining starts in the selected Grid after you watch the full ad.'),
+      actions: [
+        { text: t('취소', 'Cancel'), style: 'cancel' },
+        { text: t('광고 시청', 'Watch ad'), onPress: () => {
+          try {
+            // Production ad SDK should call this only from its earned-reward callback.
+            startMining(latitude, longitude);
+          } catch (error) {
+            showDialog({ title: t('입장할 수 없습니다', 'Unable to enter'), message: error instanceof Error ? error.message : t('다시 시도해 주세요.', 'Please try again.') });
+          }
+        } },
+      ],
+    });
   }
 
   function handleCurrentMineLocation() {
@@ -62,7 +74,7 @@ export function MapScreen() {
       <View pointerEvents="none" onLayout={(event) => setTitleHeight(event.nativeEvent.layout.height)} style={[styles.titleOverlay, { top: insets.top + 12 }]}>
         <Text style={styles.eyebrow}>PSL MINING PLANET</Text>
         <View style={styles.titleRow}>
-          <Text style={styles.title}>채굴 지도</Text>
+          <Text style={styles.title}>{t('채굴 지도', 'Mining Map')}</Text>
           <View style={styles.live}><View style={styles.dot} /><Text style={styles.liveText}>LIVE</Text></View>
         </View>
       </View>
@@ -70,41 +82,41 @@ export function MapScreen() {
       <Card>
         <View style={styles.gridRow}>
           <View style={styles.gridCopy}>
-            {hasSelectedGrid && (grid.completed || grid.ownerId) ? <Text style={styles.label}>{grid.completed ? '채굴 완료' : `${grid.ownerName ?? '사용자'} 채굴중`}</Text> : !hasSelectedGrid ? <Text style={styles.label}>채굴할 막장을 선택해 주세요</Text> : null}
-            <Text numberOfLines={1} style={styles.gridId}>{hasSelectedGrid ? grid.id : '지도를 확대하면 Grid가 표시됩니다'}</Text>
+            {hasSelectedGrid && (grid.completed || grid.ownerId) ? <Text style={styles.label}>{grid.completed ? t('채굴 완료', 'Mining complete') : `${grid.ownerName ?? t('사용자', 'User')} ${t('채굴중', 'mining')}`}</Text> : !hasSelectedGrid ? <Text style={styles.label}>{t('채굴할 막장을 선택해 주세요', 'Select a mine to start mining')}</Text> : null}
+            <Text numberOfLines={1} style={styles.gridId}>{hasSelectedGrid ? grid.id : t('지도를 확대하면 Grid가 표시됩니다', 'Zoom in to display the Grid')}</Text>
           </View>
           {hasSelectedGrid ? <View style={styles.badge}><Text style={styles.badgeText}>{grid.depthMeters.toFixed(1)} / {MINE_DEPTH_METERS}m</Text></View> : null}
         </View>
         {hasMineInfo ? (
           <View style={styles.mineInfo}>
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>{grid.completed ? '완료 사용자' : '채굴 사용자'}</Text>
+              <Text style={styles.infoLabel}>{grid.completed ? t('완료 사용자', 'Completed by') : t('채굴 사용자', 'Miner')}</Text>
               <Text numberOfLines={1} style={styles.infoValue}>{grid.ownerName ?? '사용자'}</Text>
             </View>
             {!grid.completed ? (
               <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>채굴속도</Text>
+                <Text style={styles.infoLabel}>{t('채굴속도', 'Mining speed')}</Text>
                 <Text style={styles.infoValue}>{grid.miningSpeed?.toFixed(1) ?? '—'}m/hr</Text>
               </View>
             ) : null}
             <View style={styles.infoItem}>
-              <Text style={styles.infoLabel}>현재 채굴률</Text>
+              <Text style={styles.infoLabel}>{t('현재 채굴률', 'Current progress')}</Text>
               <Text style={[styles.infoValue, grid.completed && styles.closedText]}>{grid.completed ? '폐쇄 · 100%' : `${progress.toFixed(1)}%`}</Text>
             </View>
           </View>
         ) : null}
         <Button
           title={currentMine && !currentMine.completed
-            ? '채굴장 위치로 이동'
+            ? t('채굴장 위치로 이동', 'Go to current mine')
             : !hasSelectedGrid
-            ? '막장을 선택해 주세요'
+            ? t('막장을 선택해 주세요', 'Select a mine')
             : grid.completed
-              ? '채굴 완료로 폐쇄된 막장입니다'
+              ? t('채굴 완료로 폐쇄된 막장입니다', 'This mine is closed after completion')
               : blockedByCurrentMine
-                ? '현재 막장을 먼저 완료하세요'
+                ? t('현재 막장을 먼저 완료하세요', 'Complete your current mine first')
                 : currentMine?.id === grid.id
-                  ? '채굴장 위치로 이동'
-                  : '여기서 채굴 시작하기'}
+                  ? t('채굴장 위치로 이동', 'Go to current mine')
+                  : t('여기서 채굴 시작하기', 'Start mining here')}
           onPress={currentMine && !currentMine.completed ? handleCurrentMineLocation : () => handleStart(grid.latitude, grid.longitude)}
           disabled={currentMine && !currentMine.completed ? false : !hasSelectedGrid || grid.completed || blockedByCurrentMine || Boolean(grid.ownerId && grid.ownerId !== state.user?.id)}
         />

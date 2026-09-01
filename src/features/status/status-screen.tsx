@@ -1,49 +1,50 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-import { KING_WHALE_GRID_COUNT, KING_WHALE_REWARD_PER_GRID, SHRIMP_GRID_COUNT, SHRIMP_REWARD_PER_GRID, TOTAL_PSL_RESERVES, WHALE_GRID_COUNT, WHALE_REWARD_PER_GRID } from '@/domain/mining';
+import { ANCHOVY_GRID_COUNT, ANCHOVY_REWARD_PER_GRID, KING_WHALE_GRID_COUNT, KING_WHALE_REWARD_PER_GRID, SHRIMP_GRID_COUNT, SHRIMP_REWARD_PER_GRID, TOTAL_MINE_COUNT, TOTAL_PSL_RESERVES, WHALE_GRID_COUNT, WHALE_REWARD_PER_GRID } from '@/domain/mining';
 import { useAppState } from '@/state/app-state';
+import { useLocale } from '@/state/locale';
 import { Card, Header, Screen } from '@/ui/components';
 import { palette } from '@/ui/theme';
 
 const TOTAL_REWARD = TOTAL_PSL_RESERVES;
-const TOTAL_MINE_COUNT = 100_000_000;
-const rewardRows = [
-  { name: '대왕고래 막장', count: KING_WHALE_GRID_COUNT, reward: KING_WHALE_REWARD_PER_GRID.toLocaleString(), total: (KING_WHALE_GRID_COUNT * KING_WHALE_REWARD_PER_GRID).toLocaleString() },
-  { name: '고래 막장', count: WHALE_GRID_COUNT, reward: WHALE_REWARD_PER_GRID.toLocaleString(), total: (WHALE_GRID_COUNT * WHALE_REWARD_PER_GRID).toLocaleString() },
-  { name: '새우 막장', count: SHRIMP_GRID_COUNT, reward: SHRIMP_REWARD_PER_GRID.toLocaleString(), total: (SHRIMP_GRID_COUNT * SHRIMP_REWARD_PER_GRID).toLocaleString() },
-];
-
 export function StatusScreen() {
   const { state } = useAppState();
+  const { t } = useLocale();
+  const rewardRows = [
+    { name: t('대왕고래 막장', 'King whale mine'), count: KING_WHALE_GRID_COUNT, reward: KING_WHALE_REWARD_PER_GRID.toLocaleString(), total: (KING_WHALE_GRID_COUNT * KING_WHALE_REWARD_PER_GRID).toLocaleString() },
+    { name: t('고래 막장', 'Whale mine'), count: WHALE_GRID_COUNT, reward: WHALE_REWARD_PER_GRID.toLocaleString(), total: (WHALE_GRID_COUNT * WHALE_REWARD_PER_GRID).toLocaleString() },
+    { name: t('새우 막장', 'Shrimp mine'), count: SHRIMP_GRID_COUNT, reward: SHRIMP_REWARD_PER_GRID.toLocaleString(), total: (SHRIMP_GRID_COUNT * SHRIMP_REWARD_PER_GRID).toLocaleString() },
+    { name: t('멸치 막장', 'Anchovy mine'), count: ANCHOVY_GRID_COUNT, reward: ANCHOVY_REWARD_PER_GRID.toLocaleString(), total: (ANCHOVY_GRID_COUNT * ANCHOVY_REWARD_PER_GRID).toLocaleString() },
+  ];
   const mines = Object.values(state.mines);
   const completedMineCount = mines.filter((mine) => mine.completed).length;
   const activeMineCount = mines.filter((mine) => mine.ownerId && !mine.completed).length;
 
   return (
     <Screen>
-      <View style={styles.topHeader}><Header eyebrow="PSL NETWORK STATUS" title="채굴 현황" right={<Text style={styles.updated}>방금 전</Text>} /></View>
+      <View style={styles.topHeader}><Header eyebrow="PSL NETWORK STATUS" title={t('채굴 현황', 'Mining Status')} right={<Text style={styles.updated}>{t('방금 전', 'Just now')}</Text>} /></View>
       <Card style={styles.hero}>
-        <Text style={styles.heroLabel}>총 PSL 보상</Text>
+        <Text style={styles.heroLabel}>{t('총 PSL 보상', 'TOTAL PSL REWARDS')}</Text>
         <Text numberOfLines={1} adjustsFontSizeToFit style={styles.heroValue}>{TOTAL_REWARD.toLocaleString()}</Text>
         <Text style={styles.symbol}>PSL</Text>
       </Card>
       <Card>
-        <Text style={styles.sectionTitle}>막장별 보상 현황</Text>
+        <Text style={styles.sectionTitle}>{t('막장별 보상 현황', 'Rewards by mine')}</Text>
         <View style={styles.tableHeader}>
-          <Text style={[styles.headerCell, styles.nameCell]}>구분</Text><Text style={styles.headerCell}>개수</Text><Text style={styles.headerCell}>막장 당 PSL</Text><Text style={styles.headerCell}>총 보상</Text>
+          <Text style={[styles.headerCell, styles.nameCell]}>{t('구분', 'Type')}</Text><Text style={styles.headerCell}>{t('개수', 'Count')}</Text><Text style={styles.headerCell}>{t('막장 당 PSL', 'PSL/mine')}</Text><Text style={styles.headerCell}>{t('총 보상', 'Total')}</Text>
         </View>
         {rewardRows.map((row) => <View key={row.name} style={styles.tableRow}>
           <Text style={[styles.bodyCell, styles.nameCell]}>{row.name}</Text><Text style={styles.bodyCell}>{row.count.toLocaleString()}</Text><Text style={styles.bodyCell}>{row.reward}</Text><Text style={styles.bodyCell}>{row.total}</Text>
         </View>)}
         <View style={styles.tableRow}>
-          <Text style={[styles.bodyCell, styles.nameCell]}>총 막장</Text><Text style={styles.bodyCell}>{TOTAL_MINE_COUNT.toLocaleString()}</Text><Text style={styles.bodyCell}>-</Text><Text style={styles.bodyCell}>-</Text>
+          <Text style={[styles.bodyCell, styles.nameCell]}>{t('총 막장', 'All mines')}</Text><Text style={styles.bodyCell}>{TOTAL_MINE_COUNT.toLocaleString()}</Text><Text style={styles.bodyCell}>-</Text><Text style={styles.bodyCell}>-</Text>
         </View>
-        <View style={styles.totalRow}><Text style={styles.totalLabel}>합계</Text><Text style={styles.totalValue}>{TOTAL_REWARD.toLocaleString()} PSL</Text></View>
+        <View style={styles.totalRow}><Text style={styles.totalLabel}>{t('합계', 'Total')}</Text><Text style={styles.totalValue}>{TOTAL_REWARD.toLocaleString()} PSL</Text></View>
       </Card>
       <Card>
-        <Text style={styles.sectionTitle}>실시간 테스트 데이터</Text>
-        <View style={styles.statGrid}><Stat label="채굴 완료 막장" value={completedMineCount.toLocaleString()} /><Stat label="채굴 중" value={activeMineCount.toLocaleString()} /></View>
-        <Text style={styles.note}>G-102956-46950 부근의 채굴 완료 막장 20개가 지도 확인용 데이터에 포함되어 있습니다.</Text>
+        <Text style={styles.sectionTitle}>{t('실시간 테스트 데이터', 'Live test data')}</Text>
+        <View style={styles.statGrid}><Stat label={t('채굴 완료 막장', 'Completed mines')} value={completedMineCount.toLocaleString()} /><Stat label={t('채굴 중', 'Mining')} value={activeMineCount.toLocaleString()} /></View>
+        <Text style={styles.note}>{t('G-102956-46950 부근의 채굴 완료 막장 20개가 지도 확인용 데이터에 포함되어 있습니다.', 'The map test data includes 20 completed mines near G-102956-46950.')}</Text>
       </Card>
     </Screen>
   );

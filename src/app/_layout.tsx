@@ -3,7 +3,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 
 import { AppStateProvider, useAppState } from '@/state/app-state';
-import { AppDialogProvider } from '@/ui/app-dialog';
+import { LocaleProvider, useLocale } from '@/state/locale';
+import { AppDialogProvider, useAppDialog } from '@/ui/app-dialog';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -20,10 +21,20 @@ const miningTheme = {
 };
 
 function RootNavigator() {
-  const { hydrated } = useAppState();
+  const { hydrated, state, clearAbandonmentNotice, syncProgress } = useAppState();
+  const { t } = useLocale();
+  const showDialog = useAppDialog();
   useEffect(() => {
-    if (hydrated) SplashScreen.hideAsync();
-  }, [hydrated]);
+    if (hydrated) {
+      syncProgress();
+      SplashScreen.hideAsync();
+    }
+  }, [hydrated, syncProgress]);
+  useEffect(() => {
+    if (!state.abandonmentNotice) return;
+    showDialog({ title: t('자동 퇴장 안내', 'Automatic exit'), message: t('7일간 채굴활동이 없어서 막장을 자동으로 나왔습니다.', 'You were automatically removed from the mine because there was no mining activity for 7 days.') });
+    clearAbandonmentNotice();
+  }, [clearAbandonmentNotice, showDialog, state.abandonmentNotice, t]);
 
   return (
     <ThemeProvider value={miningTheme}>
@@ -37,10 +48,12 @@ function RootNavigator() {
 
 export default function RootLayout() {
   return (
-    <AppStateProvider>
-      <AppDialogProvider>
-        <RootNavigator />
-      </AppDialogProvider>
-    </AppStateProvider>
+    <LocaleProvider>
+      <AppStateProvider>
+        <AppDialogProvider>
+          <RootNavigator />
+        </AppDialogProvider>
+      </AppStateProvider>
+    </LocaleProvider>
   );
 }

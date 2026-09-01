@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Image, LayoutChangeEvent, PanResponder, StyleSheet, View } from 'react-native';
 
-import { GRID_COLUMN_COUNT, GRID_ROW_COUNT, GridMine, gridCenterFromId, gridIdFromCoordinate } from '@/domain/mining';
+import { GRID_COLUMN_COUNT, GRID_ROW_COUNT, GridMine, gridCenterFromId, gridIdForRewardRank, gridIdFromCoordinate, KING_WHALE_GRID_COUNT, rewardForGridId, RewardType, WHALE_GRID_COUNT } from '@/domain/mining';
 import { palette } from '@/ui/theme';
 
 const EARTH_RADIUS = 6_378_137;
@@ -12,6 +12,10 @@ const GRID_HEIGHT_METERS = WORLD_HEIGHT_METERS / GRID_ROW_COUNT;
 const GRID_VISIBLE_SCALE = Math.max(GRID_WIDTH_METERS, GRID_HEIGHT_METERS) / 10;
 const OTHER_MINES_VISIBLE_SCALE = Math.max(GRID_WIDTH_METERS, GRID_HEIGHT_METERS) / 14;
 const WORLD_CENTER = { latitude: 0, longitude: 0 };
+const SPECIAL_REWARD_GRIDS = Array.from({ length: KING_WHALE_GRID_COUNT + WHALE_GRID_COUNT }, (_, rank) => {
+  const id = gridIdForRewardRank(rank);
+  return { id, reward: rank < KING_WHALE_GRID_COUNT ? 'kingWhale' as const : 'whale' as const, ...gridCenterFromId(id) };
+});
 
 type Coordinate = { latitude: number; longitude: number };
 type Projected = { x: number; y: number };
@@ -151,11 +155,36 @@ export function MineMap({ latitude, longitude, mines, currentMineId, focusTarget
     return { left: anchor.x + (gridX - projectedCenter.x) / scale, top: anchor.y - (gridY + GRID_HEIGHT_METERS - projectedCenter.y) / scale, width: GRID_WIDTH_METERS / scale, height: GRID_HEIGHT_METERS / scale };
   };
   const selectedRect = gridRect(latitude, longitude);
+  const rewardDots: { id: string; reward: Exclude<RewardType, 'hidden' | 'empty' | 'anchovy'>; left: number; top: number }[] = [];
+  if (detailed && size.width && size.height) {
+    const visibleLeft = projectedCenter.x - anchor.x * scale;
+    const visibleRight = projectedCenter.x + (size.width - anchor.x) * scale;
+    const visibleTop = projectedCenter.y + anchor.y * scale;
+    const visibleBottom = projectedCenter.y - (size.height - anchor.y) * scale;
+    const firstColumn = clamp(Math.floor((visibleLeft + WORLD_WIDTH_METERS / 2) / GRID_WIDTH_METERS), 0, GRID_COLUMN_COUNT - 1);
+    const lastColumn = clamp(Math.floor((visibleRight + WORLD_WIDTH_METERS / 2) / GRID_WIDTH_METERS), 0, GRID_COLUMN_COUNT - 1);
+    const firstRow = clamp(Math.floor((visibleBottom + WORLD_HEIGHT_METERS / 2) / GRID_HEIGHT_METERS), 0, GRID_ROW_COUNT - 1);
+    const lastRow = clamp(Math.floor((visibleTop + WORLD_HEIGHT_METERS / 2) / GRID_HEIGHT_METERS), 0, GRID_ROW_COUNT - 1);
+    for (let row = firstRow; row <= lastRow; row += 1) {
+      for (let column = firstColumn; column <= lastColumn; column += 1) {
+        const id = `G-${column}-${row}`;
+        const reward = rewardForGridId(id);
+        if (reward !== 'shrimp') continue;
+        const center = gridCenterFromId(id);
+        const rect = gridRect(center.latitude, center.longitude);
+        rewardDots.push({ id, reward, left: rect.left + rect.width / 2, top: rect.top + rect.height / 2 });
+      }
+    }
+  }
   const currentMine = currentMineId ? mines[currentMineId] : undefined;
   const visibleMines = Object.values(mines).filter((mine) => mine.id !== currentMineId && scale <= OTHER_MINES_VISIBLE_SCALE && (mine.completed || Boolean(mine.ownerId))).map((mine) => ({ mine, ...gridRect(mine.latitude, mine.longitude) })).filter(({ left, top }) => left > -80 && left < size.width + 80 && top > -40 && top < size.height + 40);
   const currentPoint = currentMine ? toProjected(currentMine.latitude, currentMine.longitude) : null;
   const currentLeft = currentPoint ? anchor.x + (currentPoint.x - projectedCenter.x) / scale : 0;
   const currentTop = currentPoint ? anchor.y - (currentPoint.y - projectedCenter.y) / scale : 0;
+  const specialRewardDots = SPECIAL_REWARD_GRIDS.map((rewardGrid) => {
+    const point = toProjected(rewardGrid.latitude, rewardGrid.longitude);
+    return { ...rewardGrid, left: anchor.x + (point.x - projectedCenter.x) / scale, top: anchor.y - (point.y - projectedCenter.y) / scale };
+  }).filter((dot) => dot.left >= -8 && dot.left <= size.width + 8 && dot.top >= -8 && dot.top <= size.height + 8);
 
   return <View ref={mapRef}
     style={styles.wrap}
@@ -163,11 +192,15 @@ export function MineMap({ latitude, longitude, mines, currentMineId, focusTarget
     {...responder.panHandlers}>
     <Image source={require('../../../assets/images/mine-world-map.png')} resizeMode="stretch" style={[styles.worldMap, { left: worldLeft, top: worldTop, width: worldWidth, height: worldHeight }]} />
     {detailed ? <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {vertical.map((left) => <View key={`v-${left}`} style={[styles.vertical, { left, top: worldTop, height: worldHeight }]} />)}
-      {horizontal.map((top) => <View key={`h-${top}`} style={[styles.horizontal, { top, left: worldLeft, width: worldWidth }]} />)}
+      {vertical.filter((left) => left >= worldLeft && left <= worldLeft + worldWidth).map((left) => <View key={`v-${left}`} style={[styles.vertical, { left, top: worldTop, height: worldHeight }]} />)}
+      {horizontal.filter((top) => top >= worldTop && top <= worldTop + worldHeight).map((top) => <View key={`h-${top}`} style={[styles.horizontal, { top, left: worldLeft, width: worldWidth }]} />)}
       <View style={[styles.selected, selectedRect]} />
+      {rewardDots.map((dot) => <View key={`reward-${dot.id}`} style={[styles.rewardDot, styles[`${dot.reward}Dot`], { left: dot.left - 4, top: dot.top - 4 }]} />)}
       {visibleMines.map(({ mine, left, top, width, height }) => <MineMarker key={mine.id} mine={mine} left={left} top={top} width={width} height={height} />)}
     </View> : null}
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {specialRewardDots.map((dot) => <View key={`special-${dot.id}`} style={[styles.specialRewardDot, styles[`${dot.reward}Dot`], { left: dot.left - 4, top: dot.top - 4 }]} />)}
+    </View>
     {currentMine && currentPoint ? <View pointerEvents="none" style={[styles.currentMine, { left: currentLeft - 24, top: currentTop - 24 }]}>
       <Animated.View style={[styles.currentPulse, { opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.38, 0.08] }), transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.45] }) }] }]} />
       <Image source={require('../../../assets/images/miner-strike-impact.png')} resizeMode="contain" style={styles.currentMineImage} />
@@ -184,6 +217,11 @@ const styles = StyleSheet.create({
   wrap: { flex: 1, overflow: 'hidden', backgroundColor: '#17283E' }, worldMap: { position: 'absolute' },
   vertical: { position: 'absolute', width: 1, backgroundColor: 'rgba(240,185,11,0.78)' }, horizontal: { position: 'absolute', height: 1, backgroundColor: 'rgba(240,185,11,0.78)' },
   selected: { position: 'absolute', borderWidth: 3, borderColor: '#FFD659', backgroundColor: 'rgba(240,185,11,0.28)', zIndex: 2 },
+  rewardDot: { position: 'absolute', width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(20,20,20,0.5)', zIndex: 5, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 2, elevation: 5 },
+  specialRewardDot: { position: 'absolute', width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: 'rgba(20,20,20,0.6)', zIndex: 7, shadowColor: '#000', shadowOpacity: 0.4, shadowRadius: 2, elevation: 7 },
+  kingWhaleDot: { backgroundColor: '#F04444' },
+  whaleDot: { backgroundColor: '#FFD83D' },
+  shrimpDot: { backgroundColor: '#FFFFFF' },
   mineMarker: { position: 'absolute', alignItems: 'center', justifyContent: 'center', zIndex: 4 }, mineMarkerImage: { width: '100%', height: '100%' },
   currentMine: { position: 'absolute', width: 48, height: 48, alignItems: 'center', justifyContent: 'center', zIndex: 8 }, currentPulse: { position: 'absolute', width: 46, height: 46, borderRadius: 23, backgroundColor: palette.gold }, currentMineImage: { width: 36, height: 36 },
 });

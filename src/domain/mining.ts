@@ -3,6 +3,7 @@ export const MINE_DEPTH_METERS = 72;
 export const BASE_MINING_SPEED = 1;
 export const TEST_MINING_SPEED = MINE_DEPTH_METERS * 3_600 / 5;
 export const AD_ACTIVE_HOURS = 24;
+export const MINE_INACTIVITY_DAYS = 7;
 export const KING_WHALE_REWARD_PER_GRID = 800_000_000;
 export const KING_WHALE_GRID_COUNT = 1;
 export const WHALE_REWARD_PER_GRID = 100_000_000;
@@ -10,17 +11,62 @@ export const WHALE_GRID_COUNT = 880;
 export const SHRIMP_REWARD_PER_GRID = 8;
 export const SHRIMP_GRID_COUNT = 11_111_111;
 export const TOTAL_REWARD_GRID_COUNT = KING_WHALE_GRID_COUNT + WHALE_GRID_COUNT + SHRIMP_GRID_COUNT;
+export const TOTAL_MINE_COUNT = 100_000_000;
+export const ANCHOVY_REWARD_PER_GRID = 1;
+export const ANCHOVY_GRID_COUNT = TOTAL_MINE_COUNT - TOTAL_REWARD_GRID_COUNT;
 export const TOTAL_PSL_RESERVES = KING_WHALE_REWARD_PER_GRID * KING_WHALE_GRID_COUNT
   + WHALE_REWARD_PER_GRID * WHALE_GRID_COUNT
-  + SHRIMP_REWARD_PER_GRID * SHRIMP_GRID_COUNT;
-export const TOTAL_MINE_COUNT = 10_000_000_000;
-export const GRID_COLUMN_COUNT = 125_000;
-export const GRID_ROW_COUNT = 80_000;
+  + SHRIMP_REWARD_PER_GRID * SHRIMP_GRID_COUNT
+  + ANCHOVY_REWARD_PER_GRID * ANCHOVY_GRID_COUNT;
+export const GRID_COLUMN_COUNT = 12_500;
+export const GRID_ROW_COUNT = 8_000;
 
-const REWARD_PERMUTATION_MULTIPLIER = 6_364_136_223n;
-const REWARD_PERMUTATION_OFFSET = 7_821_944_701n;
+const FEISTEL_HALF_BITS = 14n;
+const FEISTEL_MASK = (1n << FEISTEL_HALF_BITS) - 1n;
+const REWARD_ROUND_KEYS = [0x12F3Dn, 0x0A7C9n, 0x1D5B1n, 0x06E83n, 0x19347n, 0x0C2FDn];
+
+function rewardRound(value: bigint, key: bigint) {
+  let mixed = (value ^ key) * 0x1E35An + 0x0B79Fn;
+  mixed ^= mixed >> 7n;
+  mixed *= 0x15A4Dn;
+  mixed ^= mixed >> 9n;
+  return mixed & FEISTEL_MASK;
+}
+
+function permuteRewardIndex(value: bigint) {
+  let left = (value >> FEISTEL_HALF_BITS) & FEISTEL_MASK;
+  let right = value & FEISTEL_MASK;
+  for (const key of REWARD_ROUND_KEYS) {
+    [left, right] = [right, left ^ rewardRound(right, key)];
+  }
+  return (left << FEISTEL_HALF_BITS) | right;
+}
+
+function invertRewardIndex(value: bigint) {
+  let left = (value >> FEISTEL_HALF_BITS) & FEISTEL_MASK;
+  let right = value & FEISTEL_MASK;
+  for (let index = REWARD_ROUND_KEYS.length - 1; index >= 0; index -= 1) {
+    const previousRight = left;
+    const previousLeft = right ^ rewardRound(previousRight, REWARD_ROUND_KEYS[index]);
+    [left, right] = [previousLeft, previousRight];
+  }
+  return (left << FEISTEL_HALF_BITS) | right;
+}
+
+function rewardRank(index: bigint) {
+  let rank = index;
+  do rank = permuteRewardIndex(rank); while (rank >= BigInt(TOTAL_MINE_COUNT));
+  return rank;
+}
+
+function rewardIndexForRank(rank: bigint) {
+  let index = rank;
+  do index = invertRewardIndex(index); while (index >= BigInt(TOTAL_MINE_COUNT));
+  return index;
+}
 
 export type Pickaxe = 'bareHands' | 'iron' | 'steel' | 'titanium' | 'tungstenCarbide' | 'diamond' | 'rhodium' | 'graphite' | 'carbyne' | 'neutronium' | 'nuclearPasta';
+export type RewardType = 'hidden' | 'empty' | 'kingWhale' | 'whale' | 'shrimp' | 'anchovy';
 
 export type GridMine = {
   id: string;
@@ -34,7 +80,12 @@ export type GridMine = {
   abandonmentAt: string | null;
   lastCalculatedAt: string | null;
   completed: boolean;
-  reward: 'hidden' | 'empty' | 'kingWhale' | 'whale' | 'shrimp';
+  reward: RewardType;
+};
+
+const PICKAXE_BONUS: Record<Pickaxe, number> = {
+  bareHands: 0, iron: 0.1, steel: 0.2, titanium: 0.3, tungstenCarbide: 0.4,
+  diamond: 0.5, rhodium: 0.6, graphite: 0.7, carbyne: 0.8, neutronium: 0.9, nuclearPasta: 1,
 };
 
 export const PICKAXE_NAMES: Record<Pickaxe, string> = {
@@ -46,8 +97,8 @@ export function levelSpeed(level: number) {
   return BASE_MINING_SPEED + Math.min(10, Math.max(0, level)) * 0.1;
 }
 
-export function miningSpeed(_level: number, _pickaxe: Pickaxe) {
-  return TEST_MINING_SPEED;
+export function miningSpeed(level: number, pickaxe: Pickaxe, testMiner = false) {
+  return testMiner ? TEST_MINING_SPEED : levelSpeed(level) + PICKAXE_BONUS[pickaxe];
 }
 
 export function referralSpeedBonus(referrals: number) {
@@ -87,19 +138,28 @@ export function gridIndexFromId(id: string) {
   return row * GRID_COLUMN_COUNT + column;
 }
 
-export function rewardForGridId(id: string): 'kingWhale' | 'whale' | 'shrimp' | 'empty' {
+export function rewardForGridId(id: string): 'kingWhale' | 'whale' | 'shrimp' | 'anchovy' {
   const index = BigInt(gridIndexFromId(id));
-  const rank = (REWARD_PERMUTATION_MULTIPLIER * index + REWARD_PERMUTATION_OFFSET) % BigInt(TOTAL_MINE_COUNT);
+  const rank = rewardRank(index);
   if (rank < BigInt(KING_WHALE_GRID_COUNT)) return 'kingWhale';
   if (rank < BigInt(KING_WHALE_GRID_COUNT + WHALE_GRID_COUNT)) return 'whale';
   if (rank < BigInt(TOTAL_REWARD_GRID_COUNT)) return 'shrimp';
-  return 'empty';
+  return 'anchovy';
+}
+
+export function gridIdForRewardRank(rank: number) {
+  if (!Number.isInteger(rank) || rank < 0 || rank >= TOTAL_MINE_COUNT) throw new Error('보상 순위 범위를 벗어났습니다.');
+  const index = Number(rewardIndexForRank(BigInt(rank)));
+  const row = Math.floor(index / GRID_COLUMN_COUNT);
+  const column = index % GRID_COLUMN_COUNT;
+  return `G-${column}-${row}`;
 }
 
 export function rewardAmount(reward: GridMine['reward']) {
   if (reward === 'kingWhale') return KING_WHALE_REWARD_PER_GRID;
   if (reward === 'whale') return WHALE_REWARD_PER_GRID;
   if (reward === 'shrimp') return SHRIMP_REWARD_PER_GRID;
+  if (reward === 'anchovy') return ANCHOVY_REWARD_PER_GRID;
   return 0;
 }
 
@@ -135,12 +195,28 @@ export function activateWithAd(mine: GridMine, userId: string, now = new Date())
   if (mine.ownerId && mine.ownerId !== userId) throw new Error('다른 광부가 채굴 중인 막장입니다.');
   if (mine.completed) throw new Error('이미 채굴 완료된 막장입니다.');
   const activeUntil = new Date(now.getTime() + AD_ACTIVE_HOURS * 3_600_000);
+  const abandonmentAt = new Date(now.getTime() + MINE_INACTIVITY_DAYS * 24 * 3_600_000);
   return {
     ...mine,
     ownerId: userId,
     activeUntil: activeUntil.toISOString(),
-    abandonmentAt: null,
+    abandonmentAt: abandonmentAt.toISOString(),
     lastCalculatedAt: now.toISOString(),
+  };
+}
+
+export function abandonInactiveMine(mine: GridMine, now = new Date()): GridMine {
+  if (mine.completed || !mine.ownerId || !mine.abandonmentAt || now.getTime() < new Date(mine.abandonmentAt).getTime()) return mine;
+  return {
+    ...mine,
+    depthMeters: 0,
+    ownerId: null,
+    ownerName: null,
+    miningSpeed: null,
+    activeUntil: null,
+    abandonmentAt: null,
+    lastCalculatedAt: null,
+    reward: 'hidden',
   };
 }
 

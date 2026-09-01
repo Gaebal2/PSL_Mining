@@ -5,25 +5,26 @@
     "owner": "clazyman",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/psl-app-icon-v3.png",
+    "icon": "./assets/images/psl-app-icon-v5.png",
     "scheme": "pslmining",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/images/psl-app-icon-v3.png",
+      "icon": "./assets/images/psl-app-icon-v5.png",
       "bundleIdentifier": "com.gaebal2.pslmining",
       "infoPlist": {}
     },
     "android": {
+      "icon": "./assets/images/psl-app-icon-v5.png",
       "adaptiveIcon": {
-        "backgroundColor": "#F4F6FB",
-        "foregroundImage": "./assets/images/psl-app-icon-v3.png"
+        "backgroundColor": "#6548F1",
+        "foregroundImage": "./assets/images/psl-app-icon-v5.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.gaebal2.pslmining"
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/psl-app-icon-v5.png"
     },
     "plugins": [
       "expo-router",

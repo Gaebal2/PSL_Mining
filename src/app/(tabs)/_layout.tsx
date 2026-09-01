@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocale } from '@/state/locale';
 
 const icons = {
   mine: require('../../../assets/images/tab-mine.png'),
@@ -11,6 +12,7 @@ const icons = {
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const { t } = useLocale();
 
   return (
     <Tabs
@@ -36,9 +38,9 @@ export default function TabsLayout() {
         ),
       })}
     >
-      <Tabs.Screen name="mine" options={{ title: '막장' }} />
-      <Tabs.Screen name="map" options={{ title: '맵' }} />
-      <Tabs.Screen name="status" options={{ title: '현황' }} />
+      <Tabs.Screen name="mine" options={{ title: t('막장', 'Mine') }} />
+      <Tabs.Screen name="map" options={{ title: t('맵', 'Map') }} />
+      <Tabs.Screen name="status" options={{ title: t('현황', 'Status') }} />
       <Tabs.Screen name="profile" options={{ title: 'MY' }} />
     </Tabs>
   );

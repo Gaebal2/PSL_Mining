@@ -2,11 +2,13 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useAppState } from '@/state/app-state';
+import { useLocale } from '@/state/locale';
 import { Button, Card, Screen } from '@/ui/components';
 import { palette } from '@/ui/theme';
 
 export function LoginScreen() {
   const { login } = useAppState();
+  const { t } = useLocale();
   return (
     <Screen>
       <StatusBar style="dark" />
@@ -14,16 +16,16 @@ export function LoginScreen() {
         <View style={styles.logo}><Text style={styles.logoText}>P</Text></View>
         <Text style={styles.kicker}>SASEUL BLOCKCHAIN</Text>
         <Text style={styles.title}>PSL Mining</Text>
-        <Text style={styles.copy}>지구 어딘가에 숨겨진 888개의 PSL 광맥을 찾아보세요.</Text>
+        <Text style={styles.copy}>{t('지구 어딘가에 숨겨진 888개의 PSL 광맥을 찾아보세요.', 'Find 888 hidden PSL veins somewhere on Earth.')}</Text>
       </View>
       <Card>
-        <Text style={styles.cardTitle}>광부 계정 만들기</Text>
-        <Text style={styles.helper}>Pi 로그인은 1인 1계정 검증에 활용됩니다. 현재 버튼은 개발용 로컬 인증입니다.</Text>
-        <Button title="Pi로 계속하기 · 추천" onPress={() => login('pi')} />
-        <Button title="Google로 계속하기" secondary onPress={() => login('google')} />
-        <Button title="Apple로 계속하기" secondary onPress={() => login('apple')} />
+        <Text style={styles.cardTitle}>{t('광부 계정 만들기', 'Create a miner account')}</Text>
+        <Text style={styles.helper}>{t('Pi 로그인은 1인 1계정 검증에 활용됩니다. 현재 버튼은 개발용 로컬 인증입니다.', 'Pi sign-in can help verify one account per person. These buttons currently use local development authentication.')}</Text>
+        <Button title={t('Pi로 계속하기 · 추천', 'Continue with Pi · Recommended')} onPress={() => login('pi')} />
+        <Button title={t('Google로 계속하기', 'Continue with Google')} secondary onPress={() => login('google')} />
+        <Button title={t('Apple로 계속하기', 'Continue with Apple')} secondary onPress={() => login('apple')} />
       </Card>
-      <Text style={styles.terms}>계속하면 서비스 이용약관과 개인정보 처리방침에 동의하게 됩니다.</Text>
+      <Text style={styles.terms}>{t('계속하면 서비스 이용약관과 개인정보 처리방침에 동의하게 됩니다.', 'By continuing, you agree to the Terms of Service and Privacy Policy.')}</Text>
     </Screen>
   );
 }
