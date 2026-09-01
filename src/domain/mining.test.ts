@@ -4,30 +4,41 @@ import test from 'node:test';
 import {
   activateWithAd,
   createGrid,
-  GENERAL_REWARD_GRID_COUNT,
   GRID_COLUMN_COUNT,
   GRID_ROW_COUNT,
   gridCenterFromId,
   gridIndexFromId,
   gridIdFromCoordinate,
   leaveMine,
+  KING_WHALE_GRID_COUNT,
   miningSpeed,
   PICKAXE_NAMES,
   pickaxeForReferrals,
   rewardForGridId,
   settleMine,
+  SHRIMP_GRID_COUNT,
+  TEST_MINING_SPEED,
   TOTAL_MINE_COUNT,
-  WINNING_GRID_COUNT,
+  TOTAL_REWARD_GRID_COUNT,
+  WHALE_GRID_COUNT,
 } from './mining.ts';
 
-test('level and referral bonuses follow the confirmed balance table', () => {
+test('test mining speed is fixed for every user and tool', () => {
   assert.equal(PICKAXE_NAMES[pickaxeForReferrals(0)], '숟가락');
-  assert.equal(miningSpeed(0, pickaxeForReferrals(0)), 1);
-  assert.equal(miningSpeed(0, pickaxeForReferrals(1)), 1.1);
-  assert.equal(miningSpeed(0, pickaxeForReferrals(5)), 1.5);
-  assert.equal(miningSpeed(1, pickaxeForReferrals(0)), 1.1);
-  assert.equal(miningSpeed(10, pickaxeForReferrals(0)), 2);
-  assert.equal(miningSpeed(10, pickaxeForReferrals(10)), 3);
+  assert.equal(TEST_MINING_SPEED, 51_840);
+  assert.equal(miningSpeed(0, pickaxeForReferrals(0)), 51_840);
+  assert.equal(miningSpeed(10, pickaxeForReferrals(10)), 51_840);
+});
+
+test('the fixed test speed completes a 72m mine in five seconds', () => {
+  const start = new Date('2026-01-01T00:00:00.000Z');
+  const mine = activateWithAd(createGrid(37.5, 127), 'miner-a', start);
+  const speed = miningSpeed(0, pickaxeForReferrals(0));
+  const beforeCompletion = settleMine(mine, speed, new Date(start.getTime() + 4_999));
+  const completed = settleMine(mine, speed, new Date(start.getTime() + 5_000));
+  assert.equal(beforeCompletion.completed, false);
+  assert.equal(completed.depthMeters, 72);
+  assert.equal(completed.completed, true);
 });
 
 test('coordinates resolve to 100m grid ids', () => {
@@ -46,10 +57,12 @@ test('the finite global grid contains exactly every declared mine', () => {
 });
 
 test('reward allocation reserves exact, non-overlapping rank ranges', () => {
-  assert.equal(WINNING_GRID_COUNT, 888);
-  assert.equal(GENERAL_REWARD_GRID_COUNT, 100_000_000);
-  assert.ok(WINNING_GRID_COUNT + GENERAL_REWARD_GRID_COUNT < TOTAL_MINE_COUNT);
-  assert.ok(['psl', 'general', 'empty'].includes(rewardForGridId('G-0-0')));
+  assert.equal(KING_WHALE_GRID_COUNT, 1);
+  assert.equal(WHALE_GRID_COUNT, 880);
+  assert.equal(SHRIMP_GRID_COUNT, 11_111_111);
+  assert.equal(TOTAL_REWARD_GRID_COUNT, 11_111_992);
+  assert.ok(TOTAL_REWARD_GRID_COUNT < TOTAL_MINE_COUNT);
+  assert.ok(['kingWhale', 'whale', 'shrimp', 'empty'].includes(rewardForGridId('G-0-0')));
 });
 
 test('a level 10 solo miner reaches 48m of the 72m target in one activation', () => {

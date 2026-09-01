@@ -5,11 +5,12 @@ import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useSt
 import {
   activateWithAd,
   createGrid,
-  GENERAL_REWARD_PER_GRID,
   GridMine,
+  gridCenterFromId,
+  MINE_DEPTH_METERS,
   miningSpeed,
   pickaxeForReferrals,
-  PSL_PER_WINNING_GRID,
+  rewardAmount,
   rewardForGridId,
   settleMine,
 } from '@/domain/mining';
@@ -48,7 +49,25 @@ type AppContextValue = {
 
 const STORAGE_KEY = 'psl-mining-mvp-state-v1';
 const initialGrid = createGrid(37.5665, 126.978);
-const initialState: State = { user: null, selectedGrid: initialGrid, mines: {} };
+const demoCompletedMines = Object.fromEntries(Array.from({ length: 20 }, (_, index) => {
+  const id = `G-${102954 + index % 5}-${46948 + Math.floor(index / 5)}`;
+  const center = gridCenterFromId(id);
+  const mine: GridMine = {
+    id,
+    ...center,
+    depthMeters: MINE_DEPTH_METERS,
+    ownerId: null,
+    ownerName: `테스트 광부 ${index + 1}`,
+    miningSpeed: 1 + index % 5 * 0.5,
+    activeUntil: null,
+    abandonmentAt: null,
+    lastCalculatedAt: '2026-09-01T00:00:00.000Z',
+    completed: true,
+    reward: 'empty',
+  };
+  return [id, mine];
+}));
+const initialState: State = { user: null, selectedGrid: initialGrid, mines: demoCompletedMines };
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppStateProvider({ children }: PropsWithChildren) {
@@ -68,7 +87,7 @@ export function AppStateProvider({ children }: PropsWithChildren) {
           const migrated = migrateMine(mine);
           return [migrated.id, migrated];
         }));
-        setState({ ...stored, selectedGrid: migrateMine(stored.selectedGrid), mines });
+        setState({ ...stored, selectedGrid: migrateMine(stored.selectedGrid), mines: { ...mines, ...demoCompletedMines } });
       })
       .finally(() => setHydrated(true));
   }, []);
@@ -161,7 +180,7 @@ export function AppStateProvider({ children }: PropsWithChildren) {
         ...previous.user,
         level: Math.min(10, previous.user.level + 1),
         completedMines: previous.user.completedMines + 1,
-        pslBalance: previous.user.pslBalance + (completedMine.reward === 'psl' ? PSL_PER_WINNING_GRID : completedMine.reward === 'general' ? GENERAL_REWARD_PER_GRID : 0),
+        pslBalance: previous.user.pslBalance + rewardAmount(completedMine.reward),
       } : previous.user,
     }));
   }

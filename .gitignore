@@ -45,3 +45,5 @@ example
 # generated native folders
 /ios
 /android
+/android-*-stale/
+/android-stale-build/

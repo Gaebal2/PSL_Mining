@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Image, LayoutChangeEvent, PanResponder, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, LayoutChangeEvent, PanResponder, StyleSheet, View } from 'react-native';
 
 import { GRID_COLUMN_COUNT, GRID_ROW_COUNT, GridMine, gridCenterFromId, gridIdFromCoordinate } from '@/domain/mining';
 import { palette } from '@/ui/theme';
@@ -16,6 +16,7 @@ const WORLD_CENTER = { latitude: 0, longitude: 0 };
 type Coordinate = { latitude: number; longitude: number };
 type Projected = { x: number; y: number };
 type Size = { width: number; height: number };
+export type MapContentInsets = { top: number; right: number; bottom: number; left: number };
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 function toProjected(latitude: number, longitude: number): Projected {
@@ -26,16 +27,21 @@ function fromProjected(x: number, y: number): Coordinate {
   return { latitude: Math.asin(clamp(y / (WORLD_HEIGHT_METERS / 2), -1, 1)) * 180 / Math.PI, longitude: clamp(x / EARTH_RADIUS * 180 / Math.PI, -180, 180) };
 }
 
-function clampCenter(next: Coordinate, scale: number, size: Size) {
+function viewportCenter(size: Size, insets: MapContentInsets) {
+  return { x: insets.left + Math.max(0, size.width - insets.left - insets.right) / 2, y: insets.top + Math.max(0, size.height - insets.top - insets.bottom) / 2 };
+}
+
+function clampCenter(next: Coordinate, scale: number, size: Size, insets: MapContentInsets) {
   const point = toProjected(next.latitude, next.longitude);
-  const halfWidth = Math.min(WORLD_WIDTH_METERS / 2, size.width * scale / 2);
-  const halfHeight = Math.min(WORLD_HEIGHT_METERS / 2, size.height * scale / 2);
+  const halfWidth = Math.min(WORLD_WIDTH_METERS / 2, Math.max(0, size.width - insets.left - insets.right) * scale / 2);
+  const halfHeight = Math.min(WORLD_HEIGHT_METERS / 2, Math.max(0, size.height - insets.top - insets.bottom) * scale / 2);
   return fromProjected(clamp(point.x, -WORLD_WIDTH_METERS / 2 + halfWidth, WORLD_WIDTH_METERS / 2 - halfWidth), clamp(point.y, -WORLD_HEIGHT_METERS / 2 + halfHeight, WORLD_HEIGHT_METERS / 2 - halfHeight));
 }
 
-function coordinateAtViewport(x: number, y: number, center: Coordinate, scale: number, size: Size) {
+function coordinateAtViewport(x: number, y: number, center: Coordinate, scale: number, size: Size, insets: MapContentInsets) {
   const point = toProjected(center.latitude, center.longitude);
-  return fromProjected(point.x + (x - size.width / 2) * scale, point.y - (y - size.height / 2) * scale);
+  const anchor = viewportCenter(size, insets);
+  return fromProjected(point.x + (x - anchor.x) * scale, point.y - (y - anchor.y) * scale);
 }
 
 function touchDistance(touches: readonly { pageX: number; pageY: number }[]) {
@@ -48,11 +54,12 @@ function touchCenter(touches: readonly { pageX: number; pageY: number }[]) {
   return { x: total.x / touches.length, y: total.y / touches.length };
 }
 
-export function MineMap({ latitude, longitude, mines, currentMineId, focusTarget, onSelect }: {
+export function MineMap({ latitude, longitude, mines, currentMineId, focusTarget, contentInsets, onSelect }: {
   latitude: number; longitude: number; mines: Record<string, GridMine>; currentMineId?: string;
-  focusTarget?: Coordinate & { nonce: number }; onSelect: (lat: number, lng: number) => void;
+  focusTarget?: Coordinate & { nonce: number }; contentInsets: MapContentInsets; onSelect: (lat: number, lng: number) => void;
 }) {
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
+  const mapRef = useRef<View>(null);
   const [center, setCenter] = useState<Coordinate>(focusTarget ?? WORLD_CENTER);
   const [scale, setScale] = useState(WORLD_WIDTH_METERS);
   const centerRef = useRef(center);
@@ -62,23 +69,29 @@ export function MineMap({ latitude, longitude, mines, currentMineId, focusTarget
   const moved = useRef(false);
   const [pulse] = useState(() => new Animated.Value(0));
   const minimumScale = size.width ? GRID_WIDTH_METERS * 10 / size.width : GRID_WIDTH_METERS;
-  const maximumScale = size.width && size.height ? Math.max(WORLD_WIDTH_METERS / size.width, WORLD_HEIGHT_METERS / size.height) : WORLD_WIDTH_METERS;
+  const maximumScale = size.width && size.height ? Math.max(WORLD_WIDTH_METERS / Math.max(1, size.width - contentInsets.left - contentInsets.right), WORLD_HEIGHT_METERS / Math.max(1, size.height - contentInsets.top - contentInsets.bottom)) : WORLD_WIDTH_METERS;
 
   const setViewport = useCallback((nextCenter: Coordinate, nextScale: number) => {
     const boundedScale = clamp(nextScale, minimumScale, maximumScale);
-    const boundedCenter = clampCenter(nextCenter, boundedScale, size);
+    const boundedCenter = clampCenter(nextCenter, boundedScale, size, contentInsets);
     scaleRef.current = boundedScale; centerRef.current = boundedCenter;
     setScale(boundedScale); setCenter(boundedCenter);
-  }, [maximumScale, minimumScale, size]);
+  }, [contentInsets, maximumScale, minimumScale, size]);
+
+  useEffect(() => {
+    if (!size.width || !size.height) return;
+    setViewport(centerRef.current, scaleRef.current);
+  }, [contentInsets, setViewport, size.height, size.width]);
 
   function handleLayout(event: LayoutChangeEvent) {
     const nextSize = event.nativeEvent.layout;
     setSize(nextSize);
     if (size.width) return;
     const nextMinimum = GRID_WIDTH_METERS * 10 / nextSize.width;
-    const nextMaximum = Math.max(WORLD_WIDTH_METERS / nextSize.width, WORLD_HEIGHT_METERS / nextSize.height);
+    mapRef.current?.measureInWindow((x, y) => { mapPageOrigin.current = { x, y }; });
+    const nextMaximum = Math.max(WORLD_WIDTH_METERS / Math.max(1, nextSize.width - contentInsets.left - contentInsets.right), WORLD_HEIGHT_METERS / Math.max(1, nextSize.height - contentInsets.top - contentInsets.bottom));
     const nextScale = focusTarget ? Math.max(nextMinimum, GRID_WIDTH_METERS / 24) : nextMaximum;
-    const nextCenter = clampCenter(focusTarget ?? WORLD_CENTER, nextScale, nextSize);
+    const nextCenter = clampCenter(focusTarget ?? WORLD_CENTER, nextScale, nextSize, contentInsets);
     scaleRef.current = nextScale; centerRef.current = nextCenter;
     setScale(nextScale); setCenter(nextCenter);
   }
@@ -104,7 +117,7 @@ export function MineMap({ latitude, longitude, mines, currentMineId, focusTarget
       const dx = midpoint.x - previous.x; const dy = midpoint.y - previous.y; const currentScale = scaleRef.current;
       const nextScale = touches.length >= 2 && previous.distance > 0 && distance > 0 ? currentScale * previous.distance / distance : currentScale;
       const point = toProjected(centerRef.current.latitude, centerRef.current.longitude);
-      if (Math.abs(dx) > 1 || Math.abs(dy) > 1 || Math.abs(nextScale - currentScale) > currentScale * 0.002) moved.current = true;
+      if (Math.abs(dx) > 7 || Math.abs(dy) > 7 || Math.abs(nextScale - currentScale) > currentScale * 0.008) moved.current = true;
       setViewport(fromProjected(point.x - dx * currentScale, point.y + dy * currentScale), nextScale);
       gesture.current = { touchCount: touches.length, x: midpoint.x, y: midpoint.y, distance };
     },
@@ -112,20 +125,21 @@ export function MineMap({ latitude, longitude, mines, currentMineId, focusTarget
       gesture.current.touchCount = 0; if (moved.current || scaleRef.current > GRID_VISIBLE_SCALE) return;
       const localX = event.nativeEvent.pageX - mapPageOrigin.current.x;
       const localY = event.nativeEvent.pageY - mapPageOrigin.current.y;
-      const point = coordinateAtViewport(localX, localY, centerRef.current, scaleRef.current, size);
+      const point = coordinateAtViewport(localX, localY, centerRef.current, scaleRef.current, size, contentInsets);
       const cell = gridCenterFromId(gridIdFromCoordinate(point.latitude, point.longitude)); onSelect(cell.latitude, cell.longitude);
     },
     onPanResponderTerminate: () => { gesture.current.touchCount = 0; },
-  }), [onSelect, setViewport, size]);
+  }), [contentInsets, onSelect, setViewport, size]);
 
   const projectedCenter = toProjected(center.latitude, center.longitude);
+  const anchor = viewportCenter(size, contentInsets);
   const detailed = scale <= GRID_VISIBLE_SCALE;
-  const worldLeft = size.width / 2 + (-WORLD_WIDTH_METERS / 2 - projectedCenter.x) / scale;
-  const worldTop = size.height / 2 - (WORLD_HEIGHT_METERS / 2 - projectedCenter.y) / scale;
+  const worldLeft = anchor.x + (-WORLD_WIDTH_METERS / 2 - projectedCenter.x) / scale;
+  const worldTop = anchor.y - (WORLD_HEIGHT_METERS / 2 - projectedCenter.y) / scale;
   const worldWidth = WORLD_WIDTH_METERS / scale; const worldHeight = WORLD_HEIGHT_METERS / scale;
   const vertical: number[] = []; const horizontal: number[] = [];
   if (size.width && detailed) {
-    const left = projectedCenter.x - size.width * scale / 2; const top = projectedCenter.y + size.height * scale / 2;
+    const left = projectedCenter.x - anchor.x * scale; const top = projectedCenter.y + anchor.y * scale;
     for (let x = Math.ceil((left + WORLD_WIDTH_METERS / 2) / GRID_WIDTH_METERS) * GRID_WIDTH_METERS - WORLD_WIDTH_METERS / 2; x <= left + size.width * scale; x += GRID_WIDTH_METERS) vertical.push((x - left) / scale);
     for (let y = Math.floor((top + WORLD_HEIGHT_METERS / 2) / GRID_HEIGHT_METERS) * GRID_HEIGHT_METERS - WORLD_HEIGHT_METERS / 2; y >= top - size.height * scale; y -= GRID_HEIGHT_METERS) horizontal.push((top - y) / scale);
   }
@@ -134,50 +148,42 @@ export function MineMap({ latitude, longitude, mines, currentMineId, focusTarget
     const point = toProjected(lat, lng);
     const gridX = Math.floor((point.x + WORLD_WIDTH_METERS / 2) / GRID_WIDTH_METERS) * GRID_WIDTH_METERS - WORLD_WIDTH_METERS / 2;
     const gridY = Math.floor((point.y + WORLD_HEIGHT_METERS / 2) / GRID_HEIGHT_METERS) * GRID_HEIGHT_METERS - WORLD_HEIGHT_METERS / 2;
-    return { left: size.width / 2 + (gridX - projectedCenter.x) / scale, top: size.height / 2 - (gridY + GRID_HEIGHT_METERS - projectedCenter.y) / scale, width: GRID_WIDTH_METERS / scale, height: GRID_HEIGHT_METERS / scale };
+    return { left: anchor.x + (gridX - projectedCenter.x) / scale, top: anchor.y - (gridY + GRID_HEIGHT_METERS - projectedCenter.y) / scale, width: GRID_WIDTH_METERS / scale, height: GRID_HEIGHT_METERS / scale };
   };
   const selectedRect = gridRect(latitude, longitude);
   const currentMine = currentMineId ? mines[currentMineId] : undefined;
   const visibleMines = Object.values(mines).filter((mine) => mine.id !== currentMineId && scale <= OTHER_MINES_VISIBLE_SCALE && (mine.completed || Boolean(mine.ownerId))).map((mine) => ({ mine, ...gridRect(mine.latitude, mine.longitude) })).filter(({ left, top }) => left > -80 && left < size.width + 80 && top > -40 && top < size.height + 40);
   const currentPoint = currentMine ? toProjected(currentMine.latitude, currentMine.longitude) : null;
-  const currentLeft = currentPoint ? size.width / 2 + (currentPoint.x - projectedCenter.x) / scale : 0;
-  const currentTop = currentPoint ? size.height / 2 - (currentPoint.y - projectedCenter.y) / scale : 0;
+  const currentLeft = currentPoint ? anchor.x + (currentPoint.x - projectedCenter.x) / scale : 0;
+  const currentTop = currentPoint ? anchor.y - (currentPoint.y - projectedCenter.y) / scale : 0;
 
-  return <View
+  return <View ref={mapRef}
     style={styles.wrap}
     onLayout={handleLayout}
-    onTouchStart={(event) => {
-      mapPageOrigin.current = {
-        x: event.nativeEvent.pageX - event.nativeEvent.locationX,
-        y: event.nativeEvent.pageY - event.nativeEvent.locationY,
-      };
-    }}
     {...responder.panHandlers}>
     <Image source={require('../../../assets/images/mine-world-map.png')} resizeMode="stretch" style={[styles.worldMap, { left: worldLeft, top: worldTop, width: worldWidth, height: worldHeight }]} />
     {detailed ? <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      {vertical.map((left) => <View key={`v-${left}`} style={[styles.vertical, { left }]} />)}
-      {horizontal.map((top) => <View key={`h-${top}`} style={[styles.horizontal, { top }]} />)}
+      {vertical.map((left) => <View key={`v-${left}`} style={[styles.vertical, { left, top: worldTop, height: worldHeight }]} />)}
+      {horizontal.map((top) => <View key={`h-${top}`} style={[styles.horizontal, { top, left: worldLeft, width: worldWidth }]} />)}
       <View style={[styles.selected, selectedRect]} />
       {visibleMines.map(({ mine, left, top, width, height }) => <MineMarker key={mine.id} mine={mine} left={left} top={top} width={width} height={height} />)}
     </View> : null}
     {currentMine && currentPoint ? <View pointerEvents="none" style={[styles.currentMine, { left: currentLeft - 24, top: currentTop - 24 }]}>
       <Animated.View style={[styles.currentPulse, { opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.38, 0.08] }), transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.45] }) }] }]} />
-      <Image source={require('../../../assets/images/miner-strike-impact.png')} resizeMode="contain" style={styles.currentMineImage} /><Text style={styles.currentMineLabel}>내 채굴장</Text>
+      <Image source={require('../../../assets/images/miner-strike-impact.png')} resizeMode="contain" style={styles.currentMineImage} />
     </View> : null}
   </View>;
 }
 
 function MineMarker({ mine, left, top, width, height }: { mine: GridMine; left: number; top: number; width: number; height: number }) {
   const markerSize = clamp(Math.min(width, height) * 0.78, 12, 46);
-  return <><View style={[styles.mineMarker, { left: left + width / 2 - markerSize / 2, top: top + height / 2 - markerSize / 2, width: markerSize, height: markerSize }]}><Image source={mine.completed ? require('../../../assets/images/mine-closed.png') : require('../../../assets/images/miner-strike-impact.png')} resizeMode="contain" style={styles.mineMarkerImage} /></View><View style={[styles.mineLabel, { left: left + width / 2 - 38, top: top + height - 2 }]}><Text numberOfLines={1} style={styles.mineLabelText}>{mine.completed ? '채굴 완료' : `${mine.ownerName ?? '사용자'} 채굴중`}</Text></View></>;
+  return <View style={[styles.mineMarker, { left: left + width / 2 - markerSize / 2, top: top + height / 2 - markerSize / 2, width: markerSize, height: markerSize }]}><Image source={mine.completed ? require('../../../assets/images/mine-closed.png') : require('../../../assets/images/miner-strike-impact.png')} resizeMode="contain" style={styles.mineMarkerImage} /></View>;
 }
 
 const styles = StyleSheet.create({
   wrap: { flex: 1, overflow: 'hidden', backgroundColor: '#17283E' }, worldMap: { position: 'absolute' },
-  vertical: { position: 'absolute', top: 0, bottom: 0, width: 1, backgroundColor: 'rgba(240,185,11,0.78)' }, horizontal: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: 'rgba(240,185,11,0.78)' },
+  vertical: { position: 'absolute', width: 1, backgroundColor: 'rgba(240,185,11,0.78)' }, horizontal: { position: 'absolute', height: 1, backgroundColor: 'rgba(240,185,11,0.78)' },
   selected: { position: 'absolute', borderWidth: 3, borderColor: '#FFD659', backgroundColor: 'rgba(240,185,11,0.28)', zIndex: 2 },
-  mineLabel: { position: 'absolute', width: 76, minHeight: 20, paddingHorizontal: 4, borderRadius: 7, backgroundColor: 'rgba(54,39,8,0.9)', alignItems: 'center', justifyContent: 'center', zIndex: 3 }, mineLabelText: { color: '#FFFFFF', fontSize: 8, fontWeight: '900' },
   mineMarker: { position: 'absolute', alignItems: 'center', justifyContent: 'center', zIndex: 4 }, mineMarkerImage: { width: '100%', height: '100%' },
   currentMine: { position: 'absolute', width: 48, height: 48, alignItems: 'center', justifyContent: 'center', zIndex: 8 }, currentPulse: { position: 'absolute', width: 46, height: 46, borderRadius: 23, backgroundColor: palette.gold }, currentMineImage: { width: 36, height: 36 },
-  currentMineLabel: { position: 'absolute', top: 43, width: 62, textAlign: 'center', color: '#FFFFFF', fontSize: 9, fontWeight: '900', backgroundColor: 'rgba(35,27,15,0.82)', borderRadius: 7, paddingVertical: 2 },
 });

@@ -12,6 +12,7 @@ export function ProfileScreen() {
   const user = state.user!;
   const showDialog = useAppDialog();
   const [wallet, setWalletInput] = useState(user.walletAddress);
+  const [isWalletEditing, setIsWalletEditing] = useState(!user.walletAddress);
   const pickaxe = pickaxeForReferrals(user.referrals);
   const currentSpeed = miningSpeed(user.level, pickaxe);
 
@@ -19,7 +20,17 @@ export function ProfileScreen() {
     const normalized = wallet.trim();
     if (normalized && normalized.length !== 44) return showDialog({ title: '주소를 확인해 주세요', message: 'SASEUL 지갑 주소는 44자리여야 합니다.' });
     setWallet(normalized);
+    setWalletInput(normalized);
+    setIsWalletEditing(!normalized);
     showDialog({ title: '저장 완료', message: normalized ? 'PSL_Wallet 주소가 등록되었습니다.' : '등록된 주소를 삭제했습니다.' });
+  }
+
+  function handleWalletButton() {
+    if (isWalletEditing) {
+      saveWallet();
+      return;
+    }
+    setIsWalletEditing(true);
   }
 
   async function handleWithdraw() {
@@ -28,6 +39,13 @@ export function ProfileScreen() {
 
   return (
     <Screen>
+      <View style={styles.topHeader}><Header eyebrow="MINER PROFILE" title={user.name} right={user.piVerified ? <View style={styles.verified}><Text style={styles.verifiedText}>π VERIFIED</Text></View> : null} /></View>
+      <Card style={styles.balanceCard}>
+        <Text style={styles.balanceLabel}>보유 PSL</Text>
+        <Text style={styles.balance}>{user.pslBalance.toLocaleString()}</Text>
+        <Text style={styles.balanceSymbol}>PSL</Text>
+        <Button title="전체 잔액 출금" onPress={handleWithdraw} disabled={user.pslBalance <= 0 || !user.walletAddress} />
+      </Card>
       <Card style={styles.levelCard}>
         <View style={styles.levelHeader}>
           <View>
@@ -61,15 +79,6 @@ export function ProfileScreen() {
           ))}
         </View>
       </Card>
-      <Header eyebrow="MINER PROFILE" title={user.name} right={user.piVerified ? <View style={styles.verified}><Text style={styles.verifiedText}>π VERIFIED</Text></View> : null} />
-      <Card style={styles.balanceCard}>
-        <Text style={styles.balanceLabel}>보유 PSL</Text>
-        <Text style={styles.balance}>{user.pslBalance.toLocaleString()}</Text>
-        <Text style={styles.balanceSymbol}>PSL</Text>
-        <Button title="전체 잔액 출금" onPress={handleWithdraw} disabled={user.pslBalance <= 0 || !user.walletAddress} />
-        <Text style={styles.fee}>출금 시 SASEUL 네트워크 SL 수수료는 사용자가 부담합니다.</Text>
-      </Card>
-
       <Card>
         <View style={styles.metrics}>
           <Metric label="숙련도" value={`Lv.${user.level}`} />
@@ -92,9 +101,11 @@ export function ProfileScreen() {
           placeholderTextColor={palette.muted}
           autoCapitalize="none"
           autoCorrect={false}
-          style={styles.input}
+          editable={isWalletEditing}
+          selectTextOnFocus={isWalletEditing}
+          style={[styles.input, !isWalletEditing && styles.inputLocked]}
         />
-        <Button title="지갑 주소 저장" secondary onPress={saveWallet} />
+        <Button title={isWalletEditing ? '지갑 주소 저장' : '지갑 주소 변경'} secondary onPress={handleWalletButton} />
       </Card>
 
       <Card>
@@ -108,13 +119,13 @@ export function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
+  topHeader: { marginTop: -6 },
   verified: { backgroundColor: palette.gold, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 13 },
   verifiedText: { color: '#FFF', fontSize: 10, fontWeight: '900' },
   balanceCard: { alignItems: 'center', backgroundColor: palette.hero, borderColor: palette.hero },
   balanceLabel: { color: palette.mint, fontSize: 12, fontWeight: '800' },
   balance: { color: palette.onHero, fontSize: 38, fontWeight: '900' },
   balanceSymbol: { color: '#AFA0FF', fontWeight: '900', marginTop: -8, marginBottom: 6 },
-  fee: { color: '#C8C4D8', fontSize: 11, textAlign: 'center' },
   metrics: { flexDirection: 'row', gap: 10, paddingVertical: 3 },
   levelCard: { backgroundColor: palette.surface2, borderColor: '#D9D1FF' },
   levelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
@@ -133,6 +144,7 @@ const styles = StyleSheet.create({
   sectionTitle: { color: palette.text, fontSize: 18, fontWeight: '900' },
   helper: { color: palette.muted, fontSize: 13, lineHeight: 19 },
   input: { minHeight: 52, borderRadius: 15, borderWidth: 1, borderColor: palette.border, backgroundColor: palette.background, color: palette.text, paddingHorizontal: 15, fontSize: 13 },
+  inputLocked: { backgroundColor: palette.surface2, color: palette.muted, opacity: 0.78 },
   identityRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
   identityLabel: { color: palette.muted, fontSize: 13 },
   identityValue: { color: palette.text, fontSize: 13, fontWeight: '800' },

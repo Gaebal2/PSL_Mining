@@ -5,18 +5,18 @@
     "owner": "clazyman",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/psl-app-icon.png",
+    "icon": "./assets/images/psl-app-icon-v3.png",
     "scheme": "pslmining",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/images/psl-app-icon.png",
+      "icon": "./assets/images/psl-app-icon-v3.png",
       "bundleIdentifier": "com.gaebal2.pslmining",
       "infoPlist": {}
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#F4F6FB",
-        "foregroundImage": "./assets/images/psl-app-icon.png"
+        "foregroundImage": "./assets/images/psl-app-icon-v3.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.gaebal2.pslmining"

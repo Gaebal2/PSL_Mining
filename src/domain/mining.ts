@@ -1,18 +1,24 @@
 export const GRID_SIZE_METERS = 100;
 export const MINE_DEPTH_METERS = 72;
 export const BASE_MINING_SPEED = 1;
+export const TEST_MINING_SPEED = MINE_DEPTH_METERS * 3_600 / 5;
 export const AD_ACTIVE_HOURS = 24;
-export const PSL_PER_WINNING_GRID = 100_000_000;
-export const WINNING_GRID_COUNT = 888;
-export const GENERAL_REWARD_PER_GRID = 8.88;
-export const GENERAL_REWARD_GRID_COUNT = 100_000_000;
-export const TOTAL_PSL_RESERVES = PSL_PER_WINNING_GRID * WINNING_GRID_COUNT + GENERAL_REWARD_PER_GRID * GENERAL_REWARD_GRID_COUNT;
+export const KING_WHALE_REWARD_PER_GRID = 800_000_000;
+export const KING_WHALE_GRID_COUNT = 1;
+export const WHALE_REWARD_PER_GRID = 100_000_000;
+export const WHALE_GRID_COUNT = 880;
+export const SHRIMP_REWARD_PER_GRID = 8;
+export const SHRIMP_GRID_COUNT = 11_111_111;
+export const TOTAL_REWARD_GRID_COUNT = KING_WHALE_GRID_COUNT + WHALE_GRID_COUNT + SHRIMP_GRID_COUNT;
+export const TOTAL_PSL_RESERVES = KING_WHALE_REWARD_PER_GRID * KING_WHALE_GRID_COUNT
+  + WHALE_REWARD_PER_GRID * WHALE_GRID_COUNT
+  + SHRIMP_REWARD_PER_GRID * SHRIMP_GRID_COUNT;
 export const TOTAL_MINE_COUNT = 10_000_000_000;
 export const GRID_COLUMN_COUNT = 125_000;
 export const GRID_ROW_COUNT = 80_000;
 
-const REWARD_PERMUTATION_MULTIPLIER = 2_654_435_761n;
-const REWARD_PERMUTATION_OFFSET = 38_845_986_217n;
+const REWARD_PERMUTATION_MULTIPLIER = 6_364_136_223n;
+const REWARD_PERMUTATION_OFFSET = 7_821_944_701n;
 
 export type Pickaxe = 'bareHands' | 'iron' | 'steel' | 'titanium' | 'tungstenCarbide' | 'diamond' | 'rhodium' | 'graphite' | 'carbyne' | 'neutronium' | 'nuclearPasta';
 
@@ -28,21 +34,7 @@ export type GridMine = {
   abandonmentAt: string | null;
   lastCalculatedAt: string | null;
   completed: boolean;
-  reward: 'hidden' | 'empty' | 'general' | 'psl';
-};
-
-const PICKAXE_BONUS: Record<Pickaxe, number> = {
-  bareHands: 0,
-  iron: 0.1,
-  steel: 0.2,
-  titanium: 0.3,
-  tungstenCarbide: 0.4,
-  diamond: 0.5,
-  rhodium: 0.6,
-  graphite: 0.7,
-  carbyne: 0.8,
-  neutronium: 0.9,
-  nuclearPasta: 1,
+  reward: 'hidden' | 'empty' | 'kingWhale' | 'whale' | 'shrimp';
 };
 
 export const PICKAXE_NAMES: Record<Pickaxe, string> = {
@@ -54,8 +46,8 @@ export function levelSpeed(level: number) {
   return BASE_MINING_SPEED + Math.min(10, Math.max(0, level)) * 0.1;
 }
 
-export function miningSpeed(level: number, pickaxe: Pickaxe) {
-  return levelSpeed(level) + PICKAXE_BONUS[pickaxe];
+export function miningSpeed(_level: number, _pickaxe: Pickaxe) {
+  return TEST_MINING_SPEED;
 }
 
 export function referralSpeedBonus(referrals: number) {
@@ -95,12 +87,20 @@ export function gridIndexFromId(id: string) {
   return row * GRID_COLUMN_COUNT + column;
 }
 
-export function rewardForGridId(id: string): 'psl' | 'general' | 'empty' {
+export function rewardForGridId(id: string): 'kingWhale' | 'whale' | 'shrimp' | 'empty' {
   const index = BigInt(gridIndexFromId(id));
   const rank = (REWARD_PERMUTATION_MULTIPLIER * index + REWARD_PERMUTATION_OFFSET) % BigInt(TOTAL_MINE_COUNT);
-  if (rank < BigInt(WINNING_GRID_COUNT)) return 'psl';
-  if (rank < BigInt(WINNING_GRID_COUNT + GENERAL_REWARD_GRID_COUNT)) return 'general';
+  if (rank < BigInt(KING_WHALE_GRID_COUNT)) return 'kingWhale';
+  if (rank < BigInt(KING_WHALE_GRID_COUNT + WHALE_GRID_COUNT)) return 'whale';
+  if (rank < BigInt(TOTAL_REWARD_GRID_COUNT)) return 'shrimp';
   return 'empty';
+}
+
+export function rewardAmount(reward: GridMine['reward']) {
+  if (reward === 'kingWhale') return KING_WHALE_REWARD_PER_GRID;
+  if (reward === 'whale') return WHALE_REWARD_PER_GRID;
+  if (reward === 'shrimp') return SHRIMP_REWARD_PER_GRID;
+  return 0;
 }
 
 export function createGrid(latitude: number, longitude: number): GridMine {
