@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocalSearchParams } from 'expo-router';
+import { StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { MineMap } from '@/features/map/mine-map';
@@ -11,9 +12,11 @@ import { useAppDialog } from '@/ui/app-dialog';
 import { palette } from '@/ui/theme';
 
 export function MapScreen() {
+  const params = useLocalSearchParams<{ selectedGridId?: string | string[] }>();
   const { state, currentMine, selectGrid, startMining } = useAppState();
   const insets = useSafeAreaInsets();
   const [hasSelectedGrid, setHasSelectedGrid] = useState(false);
+  const [showMyCompleted, setShowMyCompleted] = useState(false);
   const [selectedGridId, setSelectedGridId] = useState<string>();
   const [focusTarget, setFocusTarget] = useState<{ latitude: number; longitude: number; nonce: number }>();
   const [titleHeight, setTitleHeight] = useState(116);
@@ -26,6 +29,21 @@ export function MapScreen() {
   }), [cardHeight, insets.top, titleHeight]);
   const showDialog = useAppDialog();
   const { t } = useLocale();
+  const routeSelectedGridId = Array.isArray(params.selectedGridId) ? params.selectedGridId[0] : params.selectedGridId;
+
+  useEffect(() => {
+    if (!routeSelectedGridId) return;
+    const timer = setTimeout(() => {
+      const center = gridCenterFromId(routeSelectedGridId);
+      selectGrid(center.latitude, center.longitude);
+      setSelectedGridId(routeSelectedGridId);
+      setHasSelectedGrid(true);
+      setFocusTarget({ ...center, nonce: Date.now() });
+    }, 0);
+    return () => clearTimeout(timer);
+    // The route value is the navigation event; selectGrid is recreated with app state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeSelectedGridId]);
   const grid = selectedGridId
     ? state.mines[selectedGridId] ?? (state.selectedGrid.id === selectedGridId ? state.selectedGrid : (() => {
       const center = gridCenterFromId(selectedGridId);
@@ -42,10 +60,10 @@ export function MapScreen() {
       message: t('광고를 끝까지 시청하면 선택한 Grid에서 채굴을 시작합니다.', 'Mining starts in the selected Grid after you watch the full ad.'),
       actions: [
         { text: t('취소', 'Cancel'), style: 'cancel' },
-        { text: t('광고 시청', 'Watch ad'), onPress: () => {
+        { text: t('광고 시청', 'Watch ad'), onPress: async () => {
           try {
             // Production ad SDK should call this only from its earned-reward callback.
-            startMining(latitude, longitude);
+            await startMining(latitude, longitude);
           } catch (error) {
             showDialog({ title: t('입장할 수 없습니다', 'Unable to enter'), message: error instanceof Error ? error.message : t('다시 시도해 주세요.', 'Please try again.') });
           }
@@ -62,10 +80,16 @@ export function MapScreen() {
     setFocusTarget({ latitude: currentMine.latitude, longitude: currentMine.longitude, nonce: Date.now() });
   }
 
+  function handleGridVisibilityChange(visible: boolean) {
+    if (visible) return;
+    setHasSelectedGrid(false);
+    setSelectedGridId(undefined);
+  }
+
   return (
     <View style={styles.screen}>
       <View style={styles.mapViewport}>
-        <MineMap key={focusTarget?.nonce ?? 0} latitude={grid.latitude} longitude={grid.longitude} mines={state.mines} currentMineId={currentMine?.id} focusTarget={focusTarget} contentInsets={contentInsets} onSelect={(latitude, longitude) => {
+        <MineMap key={focusTarget?.nonce ?? 0} latitude={grid.latitude} longitude={grid.longitude} mines={state.mines} currentMineId={currentMine?.id} currentUserId={state.user?.id} showMyCompleted={showMyCompleted} focusTarget={focusTarget} contentInsets={contentInsets} onGridVisibilityChange={handleGridVisibilityChange} onSelect={(latitude, longitude) => {
           setSelectedGridId(gridIdFromCoordinate(latitude, longitude));
           selectGrid(latitude, longitude);
           setHasSelectedGrid(true);
@@ -82,10 +106,13 @@ export function MapScreen() {
       <Card>
         <View style={styles.gridRow}>
           <View style={styles.gridCopy}>
-            {hasSelectedGrid && (grid.completed || grid.ownerId) ? <Text style={styles.label}>{grid.completed ? t('채굴 완료', 'Mining complete') : `${grid.ownerName ?? t('사용자', 'User')} ${t('채굴중', 'mining')}`}</Text> : !hasSelectedGrid ? <Text style={styles.label}>{t('채굴할 막장을 선택해 주세요', 'Select a mine to start mining')}</Text> : null}
+            {hasSelectedGrid && (grid.completed || grid.ownerId) ? <Text style={styles.label}>{grid.completed ? t('채굴 완료', 'Mining complete') : grid.ownerId === state.user?.id ? t('내가 채굴중인 막장', 'Your active mine') : t('다른 사용자가 채굴중인 막장', 'Another miner is active here')}</Text> : !hasSelectedGrid ? <Text style={styles.label}>{t('채굴할 막장을 선택해 주세요', 'Select a mine to start mining')}</Text> : null}
             <Text numberOfLines={1} style={styles.gridId}>{hasSelectedGrid ? grid.id : t('지도를 확대하면 Grid가 표시됩니다', 'Zoom in to display the Grid')}</Text>
           </View>
-          {hasSelectedGrid ? <View style={styles.badge}><Text style={styles.badgeText}>{grid.depthMeters.toFixed(1)} / {MINE_DEPTH_METERS}m</Text></View> : null}
+          <View style={styles.completedToggle}>
+            <Text style={styles.completedToggleText}>내가 채굴한 막장</Text>
+            <Switch value={showMyCompleted} onValueChange={setShowMyCompleted} trackColor={{ false: palette.border, true: '#7257F5' }} thumbColor="#FFFFFF" />
+          </View>
         </View>
         {hasMineInfo ? (
           <View style={styles.mineInfo}>
@@ -106,19 +133,17 @@ export function MapScreen() {
           </View>
         ) : null}
         <Button
-          title={currentMine && !currentMine.completed
-            ? t('채굴장 위치로 이동', 'Go to current mine')
-            : !hasSelectedGrid
-            ? t('막장을 선택해 주세요', 'Select a mine')
+          title={!hasSelectedGrid
+            ? currentMine ? t('채굴장 위치로 이동', 'Go to current mine') : t('막장을 선택해 주세요', 'Select a mine')
             : grid.completed
               ? t('채굴 완료로 폐쇄된 막장입니다', 'This mine is closed after completion')
+              : currentMine?.id === grid.id
+                ? t('채굴장 위치로 이동', 'Go to current mine')
               : blockedByCurrentMine
                 ? t('현재 막장을 먼저 완료하세요', 'Complete your current mine first')
-                : currentMine?.id === grid.id
-                  ? t('채굴장 위치로 이동', 'Go to current mine')
-                  : t('여기서 채굴 시작하기', 'Start mining here')}
-          onPress={currentMine && !currentMine.completed ? handleCurrentMineLocation : () => handleStart(grid.latitude, grid.longitude)}
-          disabled={currentMine && !currentMine.completed ? false : !hasSelectedGrid || grid.completed || blockedByCurrentMine || Boolean(grid.ownerId && grid.ownerId !== state.user?.id)}
+                : t('여기서 채굴 시작하기', 'Start mining here')}
+          onPress={!hasSelectedGrid && currentMine ? handleCurrentMineLocation : currentMine?.id === grid.id ? handleCurrentMineLocation : () => handleStart(grid.latitude, grid.longitude)}
+          disabled={(!hasSelectedGrid && !currentMine) || (hasSelectedGrid && (grid.completed || blockedByCurrentMine || Boolean(grid.ownerId && grid.ownerId !== state.user?.id)))}
         />
       </Card>
       </View>
@@ -141,8 +166,8 @@ const styles = StyleSheet.create({
   gridCopy: { flex: 1 },
   label: { color: palette.muted, fontSize: 11, marginBottom: 4 },
   gridId: { color: palette.text, fontSize: 14, fontWeight: '900' },
-  badge: { backgroundColor: palette.surface2, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 7 },
-  badgeText: { color: palette.gold, fontWeight: '900', fontSize: 11 },
+  completedToggle: { alignItems: 'flex-end', gap: 2 },
+  completedToggleText: { color: '#7257F5', fontWeight: '900', fontSize: 10 },
   mineInfo: { flexDirection: 'row', gap: 8, padding: 10, borderRadius: 14, backgroundColor: palette.surface2 },
   infoItem: { flex: 1, minWidth: 0 },
   infoLabel: { color: palette.muted, fontSize: 9, marginBottom: 3 },

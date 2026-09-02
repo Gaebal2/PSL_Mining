@@ -13,7 +13,7 @@ import { useAppDialog } from '@/ui/app-dialog';
 import { palette } from '@/ui/theme';
 
 export function MineScreen() {
-  const { state, currentMine, watchAd, syncProgress } = useAppState();
+  const { state, currentMine, watchAd, syncProgress, leaveCurrentMine } = useAppState();
   const [clock, setClock] = useState(() => Date.now());
   const user = state.user!;
   const showDialog = useAppDialog();
@@ -21,7 +21,7 @@ export function MineScreen() {
   const pickaxe = pickaxeForReferrals(user.referrals);
   const skillSpeed = levelSpeed(user.level);
   const speed = miningSpeed(user.level, pickaxe, user.testMiner);
-  const toolBonus = speed - skillSpeed;
+  const loyaltyBonus = speed - skillSpeed;
   const displayed = currentMine ? settleMine(currentMine, speed, new Date(clock)) : null;
   const activeUntil = displayed?.activeUntil ? new Date(displayed.activeUntil).getTime() : 0;
   const isActive = Boolean(displayed && !displayed.completed && activeUntil > clock);
@@ -77,7 +77,7 @@ export function MineScreen() {
               <Text numberOfLines={1} adjustsFontSizeToFit style={styles.rewardValue}>{user.lastRewardAmount.toLocaleString()}</Text>
               <Text style={styles.rewardSymbol}>PSL</Text>
             </View>
-            <Text style={styles.completeCopy}>{t(`결과 ${user.lastRewardAmount.toLocaleString()} PSL을 획득 하셨습니다.`, `You earned ${user.lastRewardAmount.toLocaleString()} PSL.`)}</Text>
+            <Text style={styles.completeCopy}>{t('막장(Grid) 1개를 모두 채굴하여 숙련도 레벨 1증가 하였습니다.', 'You fully mined one Grid and increased your skill level by 1.')}</Text>
             <Button title={t('맵 화면에서 다음 막장 선택', 'Choose the next mine on the map')} onPress={() => router.push('/(tabs)/map')} />
           </Card>
         </Screen>
@@ -89,27 +89,38 @@ export function MineScreen() {
         <Card>
           <Text style={styles.emptyIcon}>⛏</Text>
           <Text style={styles.emptyTitle}>{t('맵 화면에서 채굴 할 막장을 선택 해 주세요', 'Choose a mine from the map')}</Text>
-          <Text style={styles.copy}>{t('세계 어디든 원하는 위치를 선택할 수 있습니다.', 'You can choose any location in the world.')}</Text>
           <Button title={t('맵 화면으로 이동', 'Go to Map')} onPress={() => router.push('/(tabs)/map')} />
         </Card>
       </Screen>
     );
   }
 
-  function handleActivation() {
+  async function handleActivation() {
     if (isActive) return;
     try {
-      watchAd();
+      await watchAd();
       setClock(Date.now());
     } catch (error) {
       showDialog({ title: t('활성화 실패', 'Activation failed'), message: String(error) });
     }
   }
 
+  function handleLeaveMine() {
+    showDialog({
+      title: t('채굴장 나가기', 'Leave mine'),
+      message: t('채굴장을 나가면 채굴률은 초기화 되고, 이 막장(Grid)에서 다시 채굴해도 처음부터 다시 시작됩니다. 진짜 나가시겠습니까?', 'Leaving resets your mining progress. If you mine this Grid again, you will start from the beginning. Are you sure you want to leave?'),
+      actions: [
+        { text: t('취소', 'Cancel'), style: 'cancel' },
+        { text: t('나가기', 'Leave'), style: 'destructive', onPress: () => { leaveCurrentMine().catch((error) => showDialog({ title: t('나가기 실패', 'Unable to leave'), message: String(error) })); } },
+      ],
+    });
+  }
+
   return (
     <View style={styles.screen}>
       <ImageBackground source={require('../../../assets/images/mine-shaft-background-v2.png')} resizeMode="cover" style={StyleSheet.absoluteFill}>
         <SafeAreaView style={styles.scene} edges={['top']}>
+          <Pressable accessibilityRole="button" onPress={handleLeaveMine} style={({ pressed }) => [styles.leaveButton, pressed && styles.leaveButtonPressed]}><Text style={styles.leaveButtonText}>{t('채굴장 나가기', 'Leave mine')}</Text></Pressable>
           <View pointerEvents="none" style={styles.mineIdBoard}>
             <Text numberOfLines={1} adjustsFontSizeToFit style={styles.mineIdText}>{displayed.id}</Text>
           </View>
@@ -143,10 +154,10 @@ export function MineScreen() {
                   <Text style={[styles.pieStatus, !isActive && styles.pieStatusReady]}>{isActive ? `${remainingHours}h ${remainingMinutes}m` : t('채굴', 'Mine')}</Text>
                 </Pressable>
               </MetricColumn>
-              <MetricColumn label={t('기본속도', 'Base')} value={BASE_MINING_SPEED.toFixed(1)} />
-              <MetricColumn label={t('숙련도', 'Skill')} value={(skillSpeed - BASE_MINING_SPEED).toFixed(1)} />
-              <MetricColumn label={t('채굴도구', 'Tool')} value={toolBonus.toFixed(1)} />
-              <MetricColumn label={t('채굴속도', 'Speed')} value={speed.toFixed(1)} accent />
+              <MetricColumn label={t('기본속도', 'Base')} value={BASE_MINING_SPEED.toFixed(1)} tone="base" />
+              <MetricColumn label={t('숙련도', 'Skill')} value={`+${(skillSpeed - BASE_MINING_SPEED).toFixed(1)}`} tone="skill" />
+              <MetricColumn label={t('충성도', 'Loyalty')} value={`+${loyaltyBonus.toFixed(1)}`} tone="loyalty" />
+              <MetricColumn label={t('채굴속도', 'Speed')} value={speed.toFixed(1)} accent tone="total" />
             </Card>
           </View>
         </SafeAreaView>
@@ -155,11 +166,13 @@ export function MineScreen() {
   );
 }
 
-function MetricColumn({ label, value, accent = false, children }: { label: string; value?: string; accent?: boolean; children?: ReactNode }) {
+function MetricColumn({ label, value, accent = false, tone, children }: { label: string; value?: string; accent?: boolean; tone?: 'base' | 'skill' | 'loyalty' | 'total'; children?: ReactNode }) {
   return <View style={styles.metricColumn}>
     <Text numberOfLines={1} style={styles.metricLabel}>{label}</Text>
-    {children ?? <View style={[styles.metricBox, accent && styles.metricBoxAccent]}>
-      <Text style={[styles.metricValue, accent && styles.metricValueAccent]}>{value}</Text>
+    {children ?? <View style={[styles.metricBox, tone && styles[`${tone}MetricBox`], accent && styles.metricBoxAccent]}>
+      <View style={styles.metricRivetLeft} /><View style={styles.metricRivetRight} />
+      <Text style={[styles.metricValue, tone && styles[`${tone}MetricValue`], accent && styles.metricValueAccent]}>{value}</Text>
+      <Text style={styles.metricUnit}>m/hr</Text>
     </View>}
   </View>;
 }
@@ -197,7 +210,7 @@ const styles = StyleSheet.create({
   mineIdText: { color: '#FFF0B5', fontSize: 32, fontWeight: '900', letterSpacing: 1.1, textShadowColor: '#3A1C08', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 2 },
   miner: { position: 'absolute', width: '42%', height: '42%', left: '29%', top: '43%' },
   waitingMiner: { position: 'absolute', width: '36%', height: '36%', left: '32%', top: '47%' },
-  impact: { position: 'absolute', left: '51.5%', top: '71.2%', width: 42, height: 34, zIndex: 4 },
+  impact: { position: 'absolute', left: '47.5%', top: '76%', width: 42, height: 34, zIndex: 4 },
   impactCore: { position: 'absolute', left: 15, top: 15, width: 13, height: 8, borderRadius: 7, backgroundColor: '#FFF4A8', shadowColor: '#FF8A00', shadowOpacity: 1, shadowRadius: 9, elevation: 8 },
   spark: { position: 'absolute', width: 17, height: 4, borderRadius: 2, backgroundColor: '#FFB000', shadowColor: '#FF5A00', shadowOpacity: 0.9, shadowRadius: 4 },
   sparkOne: { left: 1, top: 7, transform: [{ rotate: '34deg' }] },
@@ -212,13 +225,27 @@ const styles = StyleSheet.create({
   progressFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: palette.gold },
   progressText: { position: 'absolute', zIndex: 3, width: 40, marginLeft: -40, color: '#FFFFFF', fontSize: 8, fontWeight: '900', textAlign: 'right', paddingRight: 4, textShadowColor: 'rgba(0,0,0,0.65)', textShadowRadius: 2 },
   progressFood: { position: 'absolute', zIndex: 2, top: 2, width: 20, height: 18, marginLeft: -10 },
-  infoCard: { paddingHorizontal: 6, paddingTop: 7, paddingBottom: 9, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 2, borderColor: '#D9D9D9', borderWidth: 1, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.97)' },
+  infoCard: { paddingHorizontal: 7, paddingTop: 8, paddingBottom: 10, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 3, borderColor: '#3E2A21', borderWidth: 2, borderRadius: 20, backgroundColor: 'rgba(244,238,222,0.98)', shadowColor: '#180C08', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 7 },
+  leaveButton: { position: 'absolute', zIndex: 10, top: 48, alignSelf: 'center', minHeight: 34, justifyContent: 'center', paddingHorizontal: 15, borderRadius: 17, borderWidth: 1, borderColor: 'rgba(255,223,151,0.72)', backgroundColor: 'rgba(39,34,63,0.88)' },
+  leaveButtonPressed: { opacity: 0.72, transform: [{ scale: 0.97 }] },
+  leaveButtonText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900' },
   metricColumn: { flex: 1, minWidth: 0, alignItems: 'center', gap: 5 },
-  metricLabel: { color: '#171717', fontSize: 9, lineHeight: 12, fontWeight: '700' },
-  metricBox: { width: '100%', maxWidth: 58, height: 58, borderRadius: 10, borderWidth: 1, borderColor: '#D0D0D0', backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', shadowColor: '#000000', shadowOffset: { width: 2, height: 3 }, shadowOpacity: 0.2, shadowRadius: 3, elevation: 4 },
-  metricBoxAccent: { borderColor: '#B9A06A', backgroundColor: '#FFFDF5' },
-  metricValue: { color: '#1F1F1F', fontSize: 14, fontWeight: '500' },
-  metricValueAccent: { color: '#8A5A00', fontWeight: '900' },
+  metricLabel: { color: '#3A2B22', fontSize: 9, lineHeight: 12, fontWeight: '900' },
+  metricBox: { width: '100%', maxWidth: 58, height: 58, borderRadius: 12, borderWidth: 2, borderColor: '#303746', backgroundColor: '#515A6E', alignItems: 'center', justifyContent: 'center', shadowColor: '#160C08', shadowOffset: { width: 2, height: 3 }, shadowOpacity: 0.32, shadowRadius: 3, elevation: 5, overflow: 'hidden' },
+  metricBoxAccent: { borderColor: '#7A431C', backgroundColor: '#B96A24' },
+  metricValue: { color: '#FFF1C7', fontSize: 17, lineHeight: 20, fontWeight: '900', letterSpacing: -0.4, textShadowColor: '#171A22', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 1 },
+  metricUnit: { marginTop: -2, color: '#D9DDE8', fontSize: 7, lineHeight: 9, fontWeight: '900', letterSpacing: 0.2 },
+  metricRivetLeft: { position: 'absolute', left: 4, top: 4, width: 4, height: 4, borderRadius: 2, backgroundColor: '#BFC5D2', borderWidth: 1, borderColor: '#252B38' },
+  metricRivetRight: { position: 'absolute', right: 4, top: 4, width: 4, height: 4, borderRadius: 2, backgroundColor: '#BFC5D2', borderWidth: 1, borderColor: '#252B38' },
+  baseMetricBox: { borderTopColor: '#AEB6C7' },
+  skillMetricBox: { borderTopColor: '#8F7AE8' },
+  loyaltyMetricBox: { borderTopColor: '#70B890' },
+  totalMetricBox: { borderTopColor: '#F3B64B' },
+  baseMetricValue: { color: '#F0F2F7' },
+  skillMetricValue: { color: '#D8D0FF' },
+  loyaltyMetricValue: { color: '#C8F2D7' },
+  totalMetricValue: { color: '#FFF0B5' },
+  metricValueAccent: { color: '#FFF0B5', fontWeight: '900' },
   activationBox: { paddingTop: 2 },
   pieDisabled: { borderColor: palette.border, backgroundColor: palette.surface2 },
   piePressed: { transform: [{ scale: 0.96 }], backgroundColor: 'rgba(240,185,11,0.22)' },

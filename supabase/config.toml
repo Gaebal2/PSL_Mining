@@ -1,0 +1,5 @@
+[functions.wallet-challenge]
+verify_jwt = false
+
+[functions.wallet-verify]
+verify_jwt = false

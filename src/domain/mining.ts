@@ -7,7 +7,7 @@ export const MINE_INACTIVITY_DAYS = 7;
 export const KING_WHALE_REWARD_PER_GRID = 800_000_000;
 export const KING_WHALE_GRID_COUNT = 1;
 export const WHALE_REWARD_PER_GRID = 100_000_000;
-export const WHALE_GRID_COUNT = 880;
+export const WHALE_GRID_COUNT = 888;
 export const SHRIMP_REWARD_PER_GRID = 8;
 export const SHRIMP_GRID_COUNT = 11_111_111;
 export const TOTAL_REWARD_GRID_COUNT = KING_WHALE_GRID_COUNT + WHALE_GRID_COUNT + SHRIMP_GRID_COUNT;
@@ -80,12 +80,13 @@ export type GridMine = {
   abandonmentAt: string | null;
   lastCalculatedAt: string | null;
   completed: boolean;
+  completedByUserId?: string | null;
   reward: RewardType;
 };
 
 const PICKAXE_BONUS: Record<Pickaxe, number> = {
-  bareHands: 0, iron: 0.1, steel: 0.2, titanium: 0.3, tungstenCarbide: 0.4,
-  diamond: 0.5, rhodium: 0.6, graphite: 0.7, carbyne: 0.8, neutronium: 0.9, nuclearPasta: 1,
+  bareHands: 0, iron: 0.5, steel: 1, titanium: 1.5, tungstenCarbide: 2,
+  diamond: 2.5, rhodium: 3, graphite: 3.5, carbyne: 4, neutronium: 4.5, nuclearPasta: 5,
 };
 
 export const PICKAXE_NAMES: Record<Pickaxe, string> = {
@@ -94,7 +95,7 @@ export const PICKAXE_NAMES: Record<Pickaxe, string> = {
 };
 
 export function levelSpeed(level: number) {
-  return BASE_MINING_SPEED + Math.min(10, Math.max(0, level)) * 0.1;
+  return BASE_MINING_SPEED + Math.max(0, level) * 0.1;
 }
 
 export function miningSpeed(level: number, pickaxe: Pickaxe, testMiner = false) {
@@ -102,7 +103,7 @@ export function miningSpeed(level: number, pickaxe: Pickaxe, testMiner = false) 
 }
 
 export function referralSpeedBonus(referrals: number) {
-  return Math.min(10, Math.max(0, referrals)) * 0.1;
+  return Math.min(10, Math.max(0, referrals)) * 0.5;
 }
 
 export function pickaxeForReferrals(referrals: number): Pickaxe {
@@ -177,6 +178,7 @@ export function createGrid(latitude: number, longitude: number): GridMine {
     abandonmentAt: null,
     lastCalculatedAt: null,
     completed: false,
+    completedByUserId: null,
     reward: 'hidden',
   };
 }
@@ -216,6 +218,22 @@ export function abandonInactiveMine(mine: GridMine, now = new Date()): GridMine 
     activeUntil: null,
     abandonmentAt: null,
     lastCalculatedAt: null,
+    reward: 'hidden',
+  };
+}
+
+export function resetMine(mine: GridMine): GridMine {
+  return {
+    ...mine,
+    depthMeters: 0,
+    ownerId: null,
+    ownerName: null,
+    miningSpeed: null,
+    activeUntil: null,
+    abandonmentAt: null,
+    lastCalculatedAt: null,
+    completed: false,
+    completedByUserId: null,
     reward: 'hidden',
   };
 }

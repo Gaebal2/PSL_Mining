@@ -10,7 +10,6 @@ const WORLD_HEIGHT_METERS = WORLD_WIDTH_METERS / 2;
 const GRID_WIDTH_METERS = WORLD_WIDTH_METERS / GRID_COLUMN_COUNT;
 const GRID_HEIGHT_METERS = WORLD_HEIGHT_METERS / GRID_ROW_COUNT;
 const GRID_VISIBLE_SCALE = Math.max(GRID_WIDTH_METERS, GRID_HEIGHT_METERS) / 10;
-const OTHER_MINES_VISIBLE_SCALE = Math.max(GRID_WIDTH_METERS, GRID_HEIGHT_METERS) / 14;
 const WORLD_CENTER = { latitude: 0, longitude: 0 };
 const SPECIAL_REWARD_GRIDS = Array.from({ length: KING_WHALE_GRID_COUNT + WHALE_GRID_COUNT }, (_, rank) => {
   const id = gridIdForRewardRank(rank);
@@ -58,9 +57,11 @@ function touchCenter(touches: readonly { pageX: number; pageY: number }[]) {
   return { x: total.x / touches.length, y: total.y / touches.length };
 }
 
-export function MineMap({ latitude, longitude, mines, currentMineId, focusTarget, contentInsets, onSelect }: {
+export function MineMap({ latitude, longitude, mines, currentMineId, currentUserId, showMyCompleted = false, focusTarget, contentInsets, onSelect, onGridVisibilityChange }: {
   latitude: number; longitude: number; mines: Record<string, GridMine>; currentMineId?: string;
+  currentUserId?: string; showMyCompleted?: boolean;
   focusTarget?: Coordinate & { nonce: number }; contentInsets: MapContentInsets; onSelect: (lat: number, lng: number) => void;
+  onGridVisibilityChange?: (visible: boolean) => void;
 }) {
   const [size, setSize] = useState<Size>({ width: 0, height: 0 });
   const mapRef = useRef<View>(null);
@@ -138,6 +139,7 @@ export function MineMap({ latitude, longitude, mines, currentMineId, focusTarget
   const projectedCenter = toProjected(center.latitude, center.longitude);
   const anchor = viewportCenter(size, contentInsets);
   const detailed = scale <= GRID_VISIBLE_SCALE;
+  useEffect(() => { onGridVisibilityChange?.(detailed); }, [detailed, onGridVisibilityChange]);
   const worldLeft = anchor.x + (-WORLD_WIDTH_METERS / 2 - projectedCenter.x) / scale;
   const worldTop = anchor.y - (WORLD_HEIGHT_METERS / 2 - projectedCenter.y) / scale;
   const worldWidth = WORLD_WIDTH_METERS / scale; const worldHeight = WORLD_HEIGHT_METERS / scale;
@@ -177,7 +179,10 @@ export function MineMap({ latitude, longitude, mines, currentMineId, focusTarget
     }
   }
   const currentMine = currentMineId ? mines[currentMineId] : undefined;
-  const visibleMines = Object.values(mines).filter((mine) => mine.id !== currentMineId && scale <= OTHER_MINES_VISIBLE_SCALE && (mine.completed || Boolean(mine.ownerId))).map((mine) => ({ mine, ...gridRect(mine.latitude, mine.longitude) })).filter(({ left, top }) => left > -80 && left < size.width + 80 && top > -40 && top < size.height + 40);
+  const visibleMines = Object.values(mines).filter((mine) => mine.id !== currentMineId && (!showMyCompleted || mine.completedByUserId !== currentUserId) && detailed && (mine.completed || Boolean(mine.ownerId))).map((mine) => ({ mine, ...gridRect(mine.latitude, mine.longitude) })).filter(({ left, top }) => left > -80 && left < size.width + 80 && top > -40 && top < size.height + 40);
+  const myCompletedMines = showMyCompleted && currentUserId
+    ? Object.values(mines).filter((mine) => mine.completed && mine.completedByUserId === currentUserId).map((mine) => ({ mine, ...gridRect(mine.latitude, mine.longitude) })).filter(({ left, top }) => left > -80 && left < size.width + 80 && top > -40 && top < size.height + 40)
+    : [];
   const currentPoint = currentMine ? toProjected(currentMine.latitude, currentMine.longitude) : null;
   const currentLeft = currentPoint ? anchor.x + (currentPoint.x - projectedCenter.x) / scale : 0;
   const currentTop = currentPoint ? anchor.y - (currentPoint.y - projectedCenter.y) / scale : 0;
@@ -200,17 +205,18 @@ export function MineMap({ latitude, longitude, mines, currentMineId, focusTarget
     </View> : null}
     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
       {specialRewardDots.map((dot) => <View key={`special-${dot.id}`} style={[styles.specialRewardDot, styles[`${dot.reward}Dot`], { left: dot.left - 4, top: dot.top - 4 }]} />)}
+      {myCompletedMines.map(({ mine, left, top, width, height }) => <MineMarker key={`mine-completed-${mine.id}`} mine={mine} left={left} top={top} width={width} height={height} />)}
     </View>
-    {currentMine && currentPoint ? <View pointerEvents="none" style={[styles.currentMine, { left: currentLeft - 24, top: currentTop - 24 }]}>
+    {detailed && currentMine && currentPoint ? <View pointerEvents="none" style={[styles.currentMine, { left: currentLeft - 24, top: currentTop - 24 }]}>
       <Animated.View style={[styles.currentPulse, { opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.38, 0.08] }), transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.45] }) }] }]} />
-      <Image source={require('../../../assets/images/miner-strike-impact.png')} resizeMode="contain" style={styles.currentMineImage} />
+      <Image source={require('../../../assets/images/tab-mine.png')} resizeMode="contain" style={styles.currentMineImage} />
     </View> : null}
   </View>;
 }
 
 function MineMarker({ mine, left, top, width, height }: { mine: GridMine; left: number; top: number; width: number; height: number }) {
   const markerSize = clamp(Math.min(width, height) * 0.78, 12, 46);
-  return <View style={[styles.mineMarker, { left: left + width / 2 - markerSize / 2, top: top + height / 2 - markerSize / 2, width: markerSize, height: markerSize }]}><Image source={mine.completed ? require('../../../assets/images/mine-closed.png') : require('../../../assets/images/miner-strike-impact.png')} resizeMode="contain" style={styles.mineMarkerImage} /></View>;
+  return <View style={[styles.mineMarker, { left: left + width / 2 - markerSize / 2, top: top + height / 2 - markerSize / 2, width: markerSize, height: markerSize }]}><Image source={mine.completed ? require('../../../assets/images/mine-closed.png') : require('../../../assets/images/tab-mine.png')} resizeMode="contain" style={styles.mineMarkerImage} /></View>;
 }
 
 const styles = StyleSheet.create({

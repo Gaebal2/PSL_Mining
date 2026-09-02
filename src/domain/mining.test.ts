@@ -19,6 +19,7 @@ import {
   PICKAXE_NAMES,
   pickaxeForReferrals,
   rewardForGridId,
+  referralSpeedBonus,
   settleMine,
   SHRIMP_GRID_COUNT,
   TEST_MINING_SPEED,
@@ -32,7 +33,11 @@ test('normal and test miners use their respective speed rules', () => {
   assert.equal(PICKAXE_NAMES[pickaxeForReferrals(0)], '숟가락');
   assert.equal(TEST_MINING_SPEED, 51_840);
   assert.equal(miningSpeed(0, pickaxeForReferrals(0)), 1);
-  assert.equal(miningSpeed(10, pickaxeForReferrals(10)), 3);
+  assert.equal(miningSpeed(10, pickaxeForReferrals(10)), 7);
+  assert.equal(miningSpeed(25, pickaxeForReferrals(10)), 8.5);
+  assert.equal(referralSpeedBonus(1), 0.5);
+  assert.equal(referralSpeedBonus(10), 5);
+  assert.equal(referralSpeedBonus(11), 5);
   assert.equal(miningSpeed(0, pickaxeForReferrals(0), true), 51_840);
   assert.equal(miningSpeed(10, pickaxeForReferrals(10), true), 51_840);
 });
@@ -65,13 +70,13 @@ test('the finite global grid contains exactly every declared mine', () => {
 
 test('reward allocation reserves exact, non-overlapping rank ranges', () => {
   assert.equal(KING_WHALE_GRID_COUNT, 1);
-  assert.equal(WHALE_GRID_COUNT, 880);
+  assert.equal(WHALE_GRID_COUNT, 888);
   assert.equal(SHRIMP_GRID_COUNT, 11_111_111);
-  assert.equal(TOTAL_REWARD_GRID_COUNT, 11_111_992);
-  assert.equal(ANCHOVY_GRID_COUNT, 88_888_008);
+  assert.equal(TOTAL_REWARD_GRID_COUNT, 11_112_000);
+  assert.equal(ANCHOVY_GRID_COUNT, 88_888_000);
   assert.equal(ANCHOVY_REWARD_PER_GRID, 1);
   assert.equal(TOTAL_REWARD_GRID_COUNT + ANCHOVY_GRID_COUNT, TOTAL_MINE_COUNT);
-  assert.equal(TOTAL_PSL_RESERVES, 88_977_776_896);
+  assert.equal(TOTAL_PSL_RESERVES, 89_777_776_888);
   assert.ok(TOTAL_REWARD_GRID_COUNT < TOTAL_MINE_COUNT);
   assert.ok(['kingWhale', 'whale', 'shrimp', 'anchovy'].includes(rewardForGridId('G-0-0')));
   assert.equal(rewardForGridId(gridIdForRewardRank(0)), 'kingWhale');

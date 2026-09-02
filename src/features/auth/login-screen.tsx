@@ -3,12 +3,15 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { useAppState } from '@/state/app-state';
 import { useLocale } from '@/state/locale';
+import { useAppDialog } from '@/ui/app-dialog';
 import { Button, Card, Screen } from '@/ui/components';
 import { palette } from '@/ui/theme';
 
 export function LoginScreen() {
   const { login } = useAppState();
   const { t } = useLocale();
+  const showDialog = useAppDialog();
+  const handleLogin = (provider: 'google' | 'apple') => login(provider).catch((error) => showDialog({ title: t('로그인 실패', 'Login failed'), message: error instanceof Error ? error.message : String(error) }));
   return (
     <Screen>
       <StatusBar style="dark" />
@@ -16,14 +19,13 @@ export function LoginScreen() {
         <View style={styles.logo}><Text style={styles.logoText}>P</Text></View>
         <Text style={styles.kicker}>SASEUL BLOCKCHAIN</Text>
         <Text style={styles.title}>PSL Mining</Text>
-        <Text style={styles.copy}>{t('지구 어딘가에 숨겨진 888개의 PSL 광맥을 찾아보세요.', 'Find 888 hidden PSL veins somewhere on Earth.')}</Text>
+        <Text style={styles.copy}>{t('지구 어딘가에 숨겨진 PSL 광맥을 찾아보세요.', 'Find hidden PSL veins somewhere on Earth.')}</Text>
       </View>
       <Card>
-        <Text style={styles.cardTitle}>{t('광부 계정 만들기', 'Create a miner account')}</Text>
-        <Text style={styles.helper}>{t('Pi 로그인은 1인 1계정 검증에 활용됩니다. 현재 버튼은 개발용 로컬 인증입니다.', 'Pi sign-in can help verify one account per person. These buttons currently use local development authentication.')}</Text>
-        <Button title={t('Pi로 계속하기 · 추천', 'Continue with Pi · Recommended')} onPress={() => login('pi')} />
-        <Button title={t('Google로 계속하기', 'Continue with Google')} secondary onPress={() => login('google')} />
-        <Button title={t('Apple로 계속하기', 'Continue with Apple')} secondary onPress={() => login('apple')} />
+        <Text style={styles.cardTitle}>{t('채굴자 계정 만들기', 'Create a miner account')}</Text>
+        <Text style={styles.helper}>{t('Google 또는 Apple 계정으로 로그인하세요. Pi 지갑은 MY 화면에서 출금용으로 인증할 수 있습니다.', 'Sign in with Google or Apple. You can verify your Pi wallet for withdrawals from MY.')}</Text>
+        <Button title={t('Google로 계속하기', 'Continue with Google')} onPress={() => { void handleLogin('google'); }} />
+        <Button title={t('Apple로 계속하기', 'Continue with Apple')} secondary onPress={() => { void handleLogin('apple'); }} />
       </Card>
       <Text style={styles.terms}>{t('계속하면 서비스 이용약관과 개인정보 처리방침에 동의하게 됩니다.', 'By continuing, you agree to the Terms of Service and Privacy Policy.')}</Text>
     </Screen>

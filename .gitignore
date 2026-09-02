@@ -47,3 +47,6 @@ example
 /android
 /android-*-stale/
 /android-stale-build/
+
+# Supabase local CLI state
+supabase/.temp/
