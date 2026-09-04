@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import { ReactNode, useCallback, useEffect, useState } from 'react';
-import { Image, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Image, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { ClipPath, Defs, Image as SvgImage, Path } from 'react-native-svg';
@@ -11,6 +11,7 @@ import { useLocale } from '@/state/locale';
 import { Button, Card, Header, Screen } from '@/ui/components';
 import { useAppDialog } from '@/ui/app-dialog';
 import { palette } from '@/ui/theme';
+import { showRewardedAd } from '@/lib/rewarded-ad';
 
 export function MineScreen() {
   const { state, currentMine, watchAd, syncProgress, leaveCurrentMine } = useAppState();
@@ -43,6 +44,14 @@ export function MineScreen() {
   // Run once per screen focus; the provider action intentionally reads the latest persisted snapshot.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useFocusEffect(useCallback(() => { setClock(Date.now()); syncProgress(); }, []));
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState !== 'active') return;
+      setClock(Date.now());
+      syncProgress();
+    });
+    return () => subscription.remove();
+  }, [syncProgress]);
   useEffect(() => {
     const timer = setInterval(() => { setClock(Date.now()); syncProgress(); }, 250);
     return () => clearInterval(timer);
@@ -95,14 +104,24 @@ export function MineScreen() {
     );
   }
 
-  async function handleActivation() {
+  function handleActivation() {
     if (isActive) return;
-    try {
-      await watchAd();
-      setClock(Date.now());
-    } catch (error) {
-      showDialog({ title: t('활성화 실패', 'Activation failed'), message: String(error) });
-    }
+    showDialog({
+      title: t('리워드 광고', 'Rewarded ad'),
+      message: t('광고를 끝까지 시청하면 이 막장에서 24시간 채굴을 다시 시작합니다.', 'Watch the full ad to restart 24 hours of mining in this mine.'),
+      actions: [
+        { text: t('취소', 'Cancel'), style: 'cancel' },
+        { text: t('광고 시청', 'Watch ad'), onPress: async () => {
+          try {
+            await showRewardedAd();
+            await watchAd();
+            setClock(Date.now());
+          } catch (error) {
+            showDialog({ title: t('활성화 실패', 'Activation failed'), message: error instanceof Error ? error.message : String(error) });
+          }
+        } },
+      ],
+    });
   }
 
   function handleLeaveMine() {
@@ -149,7 +168,7 @@ export function MineScreen() {
             </View>
             <Card style={styles.infoCard}>
               <MetricColumn label="24hr">
-                <Pressable disabled={isActive} onPress={handleActivation} style={({ pressed }) => [styles.metricBox, styles.activationBox, isActive && styles.pieDisabled, pressed && styles.piePressed]}>
+                <Pressable disabled={isActive} onPress={handleActivation} style={[styles.metricBox, styles.activationBox, isActive && styles.pieDisabled]}>
                   <MiningActivationIcon progress={activationProgress} />
                   <Text style={[styles.pieStatus, !isActive && styles.pieStatusReady]}>{isActive ? `${remainingHours}h ${remainingMinutes}m` : t('채굴', 'Mine')}</Text>
                 </Pressable>
@@ -248,7 +267,6 @@ const styles = StyleSheet.create({
   metricValueAccent: { color: '#FFF0B5', fontWeight: '900' },
   activationBox: { paddingTop: 2 },
   pieDisabled: { borderColor: palette.border, backgroundColor: palette.surface2 },
-  piePressed: { transform: [{ scale: 0.96 }], backgroundColor: 'rgba(240,185,11,0.22)' },
   foodIconWrap: { width: 44, height: 44 },
   foodIcon: { width: 44, height: 44 },
   foodIconDim: { opacity: 0.18 },

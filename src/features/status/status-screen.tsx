@@ -101,10 +101,10 @@ export function StatusScreen() {
           <Cell text="" />
         </View>
         <View style={[styles.tableRow, styles.totalRow]}>
-          <Cell wide strong text={t("보상합계", "Total")} />
+          <Cell wide strong text={t("PSL 보상 총 합계", "PSL reward Total")} />
           <Cell text="" />
           <Cell text="" />
-          <Cell strong text={TOTAL_PSL_RESERVES.toLocaleString()} />
+          <Cell strong text={TOTAL_PSL_RESERVES.toLocaleString() + "     "} />
         </View>
       </Card>
       <Card>

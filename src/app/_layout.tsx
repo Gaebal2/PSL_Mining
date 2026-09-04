@@ -1,6 +1,7 @@
 import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import mobileAds from 'react-native-google-mobile-ads';
 
 import { AppStateProvider, useAppState } from '@/state/app-state';
 import { LocaleProvider, useLocale } from '@/state/locale';
@@ -55,6 +56,10 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    mobileAds().initialize().catch(console.warn);
+  }, []);
+
   return (
     <LocaleProvider>
       <AppStateProvider>

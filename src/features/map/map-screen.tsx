@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -10,6 +10,7 @@ import { useLocale } from '@/state/locale';
 import { Button, Card } from '@/ui/components';
 import { useAppDialog } from '@/ui/app-dialog';
 import { palette } from '@/ui/theme';
+import { showRewardedAd } from '@/lib/rewarded-ad';
 
 export function MapScreen() {
   const params = useLocalSearchParams<{ selectedGridId?: string | string[] }>();
@@ -55,6 +56,17 @@ export function MapScreen() {
   const blockedByCurrentMine = Boolean(currentMine && currentMine.id !== grid.id && !currentMine.completed);
 
   function handleStart(latitude?: number, longitude?: number) {
+    if (!state.user?.piVerified) {
+      showDialog({
+        title: t('Pi 지갑 인증 필요', 'Pi wallet verification required'),
+        message: t('Pi 지갑 소유권이 인증되어야 채굴이 가능합니다.', 'You must verify ownership of your Pi wallet before mining.'),
+        actions: [
+          { text: t('취소', 'Cancel'), style: 'cancel' },
+          { text: t('Pi 지갑 소유권 인증하러 가기', 'Verify Pi wallet ownership'), onPress: () => router.push('/(tabs)/profile') },
+        ],
+      });
+      return;
+    }
     showDialog({
       title: t('리워드 광고', 'Rewarded ad'),
       message: t('광고를 끝까지 시청하면 선택한 Grid에서 채굴을 시작합니다.', 'Mining starts in the selected Grid after you watch the full ad.'),
@@ -62,7 +74,7 @@ export function MapScreen() {
         { text: t('취소', 'Cancel'), style: 'cancel' },
         { text: t('광고 시청', 'Watch ad'), onPress: async () => {
           try {
-            // Production ad SDK should call this only from its earned-reward callback.
+            await showRewardedAd();
             await startMining(latitude, longitude);
           } catch (error) {
             showDialog({ title: t('입장할 수 없습니다', 'Unable to enter'), message: error instanceof Error ? error.message : t('다시 시도해 주세요.', 'Please try again.') });
@@ -110,7 +122,7 @@ export function MapScreen() {
             <Text numberOfLines={1} style={styles.gridId}>{hasSelectedGrid ? grid.id : t('지도를 확대하면 Grid가 표시됩니다', 'Zoom in to display the Grid')}</Text>
           </View>
           <View style={styles.completedToggle}>
-            <Text style={styles.completedToggleText}>내가 채굴한 막장</Text>
+            <Text style={styles.completedToggleText}>{t('내가 채굴완료한 막장', 'Mines I completed')}</Text>
             <Switch value={showMyCompleted} onValueChange={setShowMyCompleted} trackColor={{ false: palette.border, true: '#7257F5' }} thumbColor="#FFFFFF" />
           </View>
         </View>

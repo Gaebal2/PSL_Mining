@@ -207,7 +207,7 @@ export function MineMap({ latitude, longitude, mines, currentMineId, currentUser
       {specialRewardDots.map((dot) => <View key={`special-${dot.id}`} style={[styles.specialRewardDot, styles[`${dot.reward}Dot`], { left: dot.left - 4, top: dot.top - 4 }]} />)}
       {myCompletedMines.map(({ mine, left, top, width, height }) => <MineMarker key={`mine-completed-${mine.id}`} mine={mine} left={left} top={top} width={width} height={height} />)}
     </View>
-    {detailed && currentMine && currentPoint ? <View pointerEvents="none" style={[styles.currentMine, { left: currentLeft - 24, top: currentTop - 24 }]}>
+    {currentMine && currentPoint ? <View pointerEvents="none" style={[styles.currentMine, { left: currentLeft - 24, top: currentTop - 24 }]}>
       <Animated.View style={[styles.currentPulse, { opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.38, 0.08] }), transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.45] }) }] }]} />
       <Image source={require('../../../assets/images/tab-mine.png')} resizeMode="contain" style={styles.currentMineImage} />
     </View> : null}

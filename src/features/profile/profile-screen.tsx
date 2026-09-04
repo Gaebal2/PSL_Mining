@@ -33,7 +33,9 @@ export function ProfileScreen() {
   const [countdownClock, setCountdownClock] = useState(() => Date.now());
   const [pslWallet, setPslWalletInput] = useState(user.pslWalletAddress);
   const [pslWalletBusy, setPslWalletBusy] = useState(false);
-  const [isPslWalletEditing, setIsPslWalletEditing] = useState(!user.pslWalletAddress);
+  const [isPslWalletEditing, setIsPslWalletEditing] = useState(
+    !user.pslWalletAddress,
+  );
   const skillBonus = user.level * 0.1;
   const firstVisibleLevel = Math.max(0, user.level - 10);
   const actualMiningHistory = Object.values(state.mines).filter(
@@ -44,17 +46,31 @@ export function ProfileScreen() {
   );
   const testMiningHistory: Pick<GridMine, "id" | "reward">[] = [
     { id: "TEST-KING-WHALE-001", reward: "kingWhale" },
-    ...Array.from({ length: 3 }, (_, index) => ({ id: `TEST-WHALE-${String(index + 1).padStart(3, "0")}`, reward: "whale" as const })),
-    ...Array.from({ length: 10 }, (_, index) => ({ id: `TEST-SHRIMP-${String(index + 1).padStart(3, "0")}`, reward: "shrimp" as const })),
+    ...Array.from({ length: 3 }, (_, index) => ({
+      id: `TEST-WHALE-${String(index + 1).padStart(3, "0")}`,
+      reward: "whale" as const,
+    })),
+    ...Array.from({ length: 10 }, (_, index) => ({
+      id: `TEST-SHRIMP-${String(index + 1).padStart(3, "0")}`,
+      reward: "shrimp" as const,
+    })),
   ];
   const miningHistory: Pick<GridMine, "id" | "reward">[] = [
     ...testMiningHistory,
     ...actualMiningHistory,
   ];
   const remainingSeconds = challenge
-    ? Math.max(0, Math.ceil((new Date(challenge.expiresAt).getTime() - countdownClock) / 1000))
+    ? Math.max(
+        0,
+        Math.ceil(
+          (new Date(challenge.expiresAt).getTime() - countdownClock) / 1000,
+        ),
+      )
     : 0;
-  const remainingTime = String(Math.floor(remainingSeconds / 60)).padStart(2, "0") + ":" + String(remainingSeconds % 60).padStart(2, "0");
+  const remainingTime =
+    String(Math.floor(remainingSeconds / 60)).padStart(2, "0") +
+    ":" +
+    String(remainingSeconds % 60).padStart(2, "0");
 
   useEffect(() => {
     if (!challenge) return;
@@ -62,10 +78,25 @@ export function ProfileScreen() {
     return () => clearInterval(timer);
   }, [challenge]);
 
-  async function beginWalletVerification() {
+  async function beginWalletVerification(allowTransfer = false) {
     setWalletBusy(true);
     try {
-      const next = await createWalletChallenge(wallet);
+      const next = await createWalletChallenge(wallet, allowTransfer);
+      if (next.ownershipConflict) {
+        const accountName = next.previousAccountName || t("기존 계정", "an existing account");
+        showDialog({
+          title: t("이미 인증된 Pi 지갑", "Pi wallet already verified"),
+          message: t(
+            `이미 기존의 "${accountName}" 계정에서 이 Pi 지갑 소유권을 인증하였습니다.\n\n여기서 다시 이 Pi 지갑 소유권을 인증하면 기존에 인증되었던 계정 및 기기의 채굴 상태는 초기화됩니다.\n\n계속 하시겠습니까?`,
+            `This Pi wallet is already verified by "${accountName}".\n\nIf you verify it here again, the mining state of the previously verified account and device will be reset.\n\nDo you want to continue?`,
+          ),
+          actions: [
+            { text: t("취소", "Cancel"), style: "cancel" },
+            { text: t("계속", "Continue"), style: "destructive", onPress: () => { void beginWalletVerification(true); } },
+          ],
+        });
+        return;
+      }
       if (next.alreadyVerified) {
         setVerifiedWallet(next.walletAddress);
         return;
@@ -90,8 +121,8 @@ export function ProfileScreen() {
         showDialog({
           title: t("입금 확인 중", "Waiting for transaction"),
           message: t(
-            `Pi Testnet에서 이 지갑이 보낸 최근 결제 ${result.checkedPaymentCount ?? 0}건을 확인했지만, 현재 Muxed 주소와 0.1 Pi 조건에 맞는 거래를 찾지 못했습니다. 네트워크와 주소를 확인한 후 다시 시도해 주세요.`,
-            `Checked ${result.checkedPaymentCount ?? 0} recent payments from this wallet on Pi Testnet, but none matched the current Muxed address and 0.1 Pi. Check the network and address, then try again.`,
+            `Pi ${challenge.network === "mainnet" ? "Mainnet" : "Testnet"}에서 이 지갑이 보낸 최근 결제 ${result.checkedPaymentCount ?? 0}건을 확인했지만, 현재 Muxed 주소와 ${Number(challenge.amount).toFixed(2)} Pi 조건에 맞는 거래를 찾지 못했습니다. 네트워크와 주소를 확인한 후 다시 시도해 주세요.`,
+            `Checked ${result.checkedPaymentCount ?? 0} recent payments from this wallet on Pi ${challenge.network === "mainnet" ? "Mainnet" : "Testnet"}, but none matched the current Muxed address and ${Number(challenge.amount).toFixed(2)} Pi. Check the network and address, then try again.`,
           ),
         });
         return;
@@ -304,7 +335,8 @@ export function ProfileScreen() {
               {t("충성도 성장 단계", "Loyalty progression")}
             </Text>
             <Text style={styles.referralTitle}>
-              현재 +{referralSpeedBonus(user.referrals).toFixed(1)}m/hr
+              {t("현재", "Current")} +
+              {referralSpeedBonus(user.referrals).toFixed(1)}m/hr
             </Text>
           </View>
           <InfoButton
@@ -379,7 +411,10 @@ export function ProfileScreen() {
         {user.piVerified ? (
           <>
             <Text style={styles.verifiedBadge}>
-              {t("인증 완료 · 출금 가능", "Verified · Withdrawals enabled")}
+              {t(
+                "인증 완료 · 채굴한 PSL 출금 가능",
+                "Verified · Mined PSL withdrawals enabled",
+              )}
             </Text>
             <Text selectable style={styles.addressText}>
               {user.walletAddress}
@@ -454,7 +489,7 @@ export function ProfileScreen() {
               }
               disabled={walletBusy || !wallet.trim()}
               onPress={() => {
-                void beginWalletVerification();
+                void beginWalletVerification(false);
               }}
             />
           </>
@@ -463,13 +498,16 @@ export function ProfileScreen() {
 
       <Card>
         <View style={styles.cardHeader}>
-          <Text style={styles.sectionTitle}>
+          <Text style={[styles.sectionTitle, styles.cardHeaderTitle]}>
             {t("PSL 토큰 지갑 연결", "Connect PSL token wallet")}
           </Text>
           <Pressable
             accessibilityRole="link"
             onPress={() => {
-              Linking.openURL("https://gaebal2.github.io/PSL_Wallet").catch(
+              // Keep the canonical URL inside the installed PWA's scope. On
+              // Android, its WebAPK can capture this HTTPS intent; otherwise
+              // the same URL safely falls back to the browser.
+              Linking.openURL("https://gaebal2.github.io/PSL_Wallet/").catch(
                 (error) =>
                   showDialog({
                     title: t("지갑을 열 수 없습니다", "Unable to open wallet"),
@@ -522,29 +560,46 @@ export function ProfileScreen() {
       </Card>
 
       <Card>
-        <Text style={styles.sectionTitle}>{t("채굴이력", "Mining history")}</Text>
-        <Text style={styles.historyTestBadge}>{t("테스트 이력", "TEST HISTORY")}</Text>
+        <Text style={styles.sectionTitle}>
+          {t("채굴이력", "Mining history")}
+        </Text>
+        <Text style={styles.historyTestBadge}>
+          {t("테스트 이력", "TEST HISTORY")}
+        </Text>
         {miningHistory.length ? (
           miningHistory.map((mine) => {
-            const reward = mine.reward === "kingWhale"
-              ? t("대왕고래 막장", "King whale mine")
-              : mine.reward === "whale"
-                ? t("고래 막장", "Whale mine")
-                : t("새우 막장", "Shrimp mine");
-            const amount = mine.reward === "kingWhale" ? 800_000_000 : mine.reward === "whale" ? 100_000_000 : 8;
+            const reward =
+              mine.reward === "kingWhale"
+                ? t("대왕고래 막장", "King whale mine")
+                : mine.reward === "whale"
+                  ? t("고래 막장", "Whale mine")
+                  : t("새우 막장", "Shrimp mine");
+            const amount =
+              mine.reward === "kingWhale"
+                ? 800_000_000
+                : mine.reward === "whale"
+                  ? 100_000_000
+                  : 8;
             return (
               <View key={mine.id} style={styles.historyRow}>
                 <View style={styles.historyCopy}>
                   <Text style={styles.historyReward}>{reward}</Text>
-                  <Text numberOfLines={1} style={styles.historyGrid}>{mine.id}</Text>
+                  <Text numberOfLines={1} style={styles.historyGrid}>
+                    {mine.id}
+                  </Text>
                 </View>
-                <Text style={styles.historyAmount}>+{amount.toLocaleString()} PSL</Text>
+                <Text style={styles.historyAmount}>
+                  +{amount.toLocaleString()} PSL
+                </Text>
               </View>
             );
           })
         ) : (
           <Text style={styles.emptyFriends}>
-            {t("아직 대왕고래, 고래 또는 새우 막장 채굴 이력이 없습니다.", "No king whale, whale, or shrimp mining history yet.")}
+            {t(
+              "아직 대왕고래, 고래 또는 새우 막장 채굴 이력이 없습니다.",
+              "No king whale, whale, or shrimp mining history yet.",
+            )}
           </Text>
         )}
       </Card>
@@ -565,7 +620,10 @@ export function ProfileScreen() {
           </Text>
           <Text style={styles.identityValue}>
             {user.piVerified
-              ? t("인증 완료 · 출금 가능", "Verified · Withdrawals enabled")
+              ? t(
+                  "인증 완료 · 채굴한 PSL 출금 가능",
+                  "Verified · Mined PSL withdrawals enabled",
+                )
               : t("미인증 · 출금 불가", "Not verified · Withdrawals disabled")}
           </Text>
         </View>
@@ -613,8 +671,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 8,
   },
-  languageOption: { color: palette.muted, fontSize: 9, fontWeight: "800" },
-  languageOptionActive: { color: palette.goldDark },
+  languageOption: { color: palette.muted, fontSize: 9, fontWeight: "800", paddingHorizontal: 7, paddingVertical: 5, borderRadius: 8 },
+  languageOptionActive: { color: palette.onHero, backgroundColor: palette.gold, fontWeight: "900" },
   languageDivider: {
     width: 1,
     height: 12,
@@ -721,11 +779,13 @@ const styles = StyleSheet.create({
   sectionTitle: { color: palette.text, fontSize: 18, fontWeight: "900" },
   cardHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 10,
   },
+  cardHeaderTitle: { flex: 1, minWidth: 0 },
   walletOpenButton: {
+    flexShrink: 0,
     borderRadius: 11,
     borderWidth: 1,
     borderColor: palette.gold,
@@ -761,7 +821,16 @@ const styles = StyleSheet.create({
   historyReward: { color: palette.text, fontSize: 14, fontWeight: "900" },
   historyGrid: { color: palette.muted, fontSize: 10, marginTop: 3 },
   historyAmount: { color: palette.goldDark, fontSize: 12, fontWeight: "900" },
-  historyTestBadge: { alignSelf: "flex-start", color: palette.goldDark, backgroundColor: palette.surface2, borderRadius: 9, paddingHorizontal: 9, paddingVertical: 5, fontSize: 10, fontWeight: "900" },
+  historyTestBadge: {
+    alignSelf: "flex-start",
+    color: palette.goldDark,
+    backgroundColor: palette.surface2,
+    borderRadius: 9,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    fontSize: 10,
+    fontWeight: "900",
+  },
   helper: { color: palette.muted, fontSize: 13, lineHeight: 19 },
   input: {
     minHeight: 52,
@@ -822,8 +891,18 @@ const styles = StyleSheet.create({
   identityRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 12,
     paddingVertical: 6,
   },
-  identityLabel: { color: palette.muted, fontSize: 13 },
-  identityValue: { color: palette.text, fontSize: 13, fontWeight: "800" },
+  identityLabel: { flexShrink: 1, color: palette.muted, fontSize: 13 },
+  identityValue: {
+    flex: 1,
+    minWidth: 0,
+    color: palette.text,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "800",
+    textAlign: "right",
+  },
 });

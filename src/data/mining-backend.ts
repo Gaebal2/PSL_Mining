@@ -75,14 +75,14 @@ export async function savePslWalletAddress(pslWalletAddress:string) {
   if(error) throw error;
 }
 
-export type WalletChallenge = { id:string; walletAddress:string; muxedAddress:string; amount:number|string; network:'testnet'|'mainnet'; expiresAt:string; alreadyVerified?:boolean };
+export type WalletChallenge = { id:string; walletAddress:string; muxedAddress:string; amount:number|string; network:'testnet'|'mainnet'; expiresAt:string; alreadyVerified?:boolean; ownershipConflict?:boolean; previousAccountName?:string };
 async function throwFunctionError(error: {message:string; context?:unknown}) {
   let message=error.message;
   const response=error.context instanceof Response ? error.context : null;
   if(response) { try { const body=await response.clone().json() as {error?:string}; if(body.error) message=body.error; } catch { /* keep the SDK message */ } }
   throw new Error(message);
 }
-export async function createWalletChallenge(walletAddress:string) {
+export async function createWalletChallenge(walletAddress:string, allowTransfer=false) {
   if (!supabase) throw new Error('Supabase가 설정되지 않았습니다.');
   let {data:{session}}=await supabase.auth.getSession();
   if(!session) {
@@ -90,7 +90,7 @@ export async function createWalletChallenge(walletAddress:string) {
     session=refreshed.data.session;
   }
   if(!session) throw new Error('로그인이 만료되었습니다. 로그아웃 후 다시 로그인해 주세요.');
-  const {data,error}=await supabase.functions.invoke('wallet-challenge',{body:{walletAddress},headers:{Authorization:`Bearer ${session.access_token}`}});
+  const {data,error}=await supabase.functions.invoke('wallet-challenge',{body:{walletAddress,allowTransfer},headers:{Authorization:`Bearer ${session.access_token}`}});
   if(error) await throwFunctionError(error); if(data?.error) throw new Error(data.error); return data as WalletChallenge;
 }
 export async function verifyWalletChallenge(challengeId:string) {

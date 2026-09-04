@@ -53,14 +53,10 @@ Deno.serve(async (request) => {
     }
     if (!txHash) return json({ verified: false, pending: true });
 
-    const { error: identityError } = await admin.from("pi_wallet_identities").insert({ user_id: user.id, wallet_address: challenge.wallet_address, verification_tx_hash: txHash });
-    if (identityError) {
-      if (identityError.code === "23505") return json({ error: "이미 인증에 사용된 지갑 또는 거래입니다." }, 409);
-      throw identityError;
-    }
-    await admin.from("wallet_verification_challenges").update({ status: "verified", transaction_hash: txHash, verified_at: new Date().toISOString() }).eq("id", challenge.id);
-    await admin.from("profiles").update({ pi_verified: true, wallet_address: challenge.wallet_address, updated_at: new Date().toISOString() }).eq("id", user.id);
-    return json({ verified: true, walletAddress: challenge.wallet_address, transactionHash: txHash });
+    const { data: completion, error: completionError } = await admin.rpc("complete_pi_wallet_verification", { p_challenge_id: challenge.id, p_transaction_hash: txHash });
+    if (completionError) throw completionError;
+    const result = Array.isArray(completion) ? completion[0] : completion;
+    return json({ verified: true, walletAddress: challenge.wallet_address, transactionHash: txHash, previousAccountId: result?.previous_user_id ?? null, resetGridId: result?.reset_grid_id ?? null });
   } catch (error) {
     console.error(error);
     return json({ error: error instanceof Error ? error.message : "지갑 소유권을 확인하지 못했습니다." }, 500);

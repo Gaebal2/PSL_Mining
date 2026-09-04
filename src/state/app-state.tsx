@@ -185,6 +185,7 @@ export function AppStateProvider({ children }: PropsWithChildren) {
 
   async function startMining(latitude?: number, longitude?: number) {
     if (!state.user) return;
+    if (!state.user.piVerified) throw new Error('Pi 지갑 소유권이 인증되어야 채굴이 가능합니다.');
     const requested = latitude !== undefined && longitude !== undefined
       ? createGrid(latitude, longitude)
       : state.selectedGrid;
@@ -215,8 +216,19 @@ export function AppStateProvider({ children }: PropsWithChildren) {
     const mine = currentMine ?? state.selectedGrid;
     const settled = settleMine(mine, speed);
     const localNext = activateWithAd(settled, state.user.id);
-    const next = await startBackendMine(settled, speed) ?? localNext;
-    setState((previous) => ({ ...previous, selectedGrid: next, mines: { ...previous.mines, [next.id]: next } }));
+    // Reflect the new 24-hour session immediately. The server result then
+    // reconciles the optimistic local state without leaving a stale ready UI
+    // on screen while the request is in flight.
+    setState((previous) => ({ ...previous, selectedGrid: localNext, mines: { ...previous.mines, [localNext.id]: localNext } }));
+    try {
+      const remoteNext = await startBackendMine(settled, speed);
+      if (remoteNext) {
+        setState((previous) => ({ ...previous, selectedGrid: remoteNext, mines: { ...previous.mines, [remoteNext.id]: remoteNext } }));
+      }
+    } catch (error) {
+      setState((previous) => ({ ...previous, selectedGrid: settled, mines: { ...previous.mines, [settled.id]: settled } }));
+      throw error;
+    }
   }
 
   async function leaveCurrentMine() {
