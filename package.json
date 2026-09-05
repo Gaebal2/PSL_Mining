@@ -9,12 +9,14 @@
     "eslint": "^9.39.5",
     "eslint-config-expo": "~57.0.1",
     "expo": "~57.0.14",
+    "expo-clipboard": "~57.0.1",
     "expo-constants": "~57.0.12",
     "expo-device": "~57.0.1",
     "expo-font": "~57.0.1",
     "expo-glass-effect": "~57.0.1",
     "expo-image": "~57.0.3",
     "expo-linking": "~57.0.6",
+    "expo-localization": "~57.0.1",
     "expo-router": "~57.0.14",
     "expo-secure-store": "~57.0.1",
     "expo-splash-screen": "~57.0.7",
@@ -41,6 +43,7 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
+    "build:android:arm64:test": "scripts\\build-arm64-test.cmd",
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
@@ -48,7 +51,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
-    "test": "node --no-warnings --experimental-strip-types --test src/domain/mining.test.ts",
+    "test": "node --no-warnings --experimental-strip-types --test src/domain/mining.test.ts src/domain/wallet-verification.test.ts",
     "validate": "npm run typecheck && npm run lint && npm test"
   },
   "private": true

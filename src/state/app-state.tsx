@@ -52,7 +52,7 @@ type AppContextValue = {
   selectGrid: (latitude: number, longitude: number) => void;
   startMining: (latitude?: number, longitude?: number) => Promise<void>;
   watchAd: () => Promise<void>;
-  syncProgress: () => void;
+  syncProgress: (force?: boolean) => Promise<void>;
   setWallet: (address: string) => void;
   setVerifiedWallet: (address: string) => void;
   setPslWallet: (address: string) => Promise<void>;
@@ -90,6 +90,30 @@ let lastBackendSyncAt = 0;
 function userFromRemote(profile: Awaited<ReturnType<typeof signInBackend>>, balance = 0): User | null {
   if (!profile) return null;
   return { id:profile.id, name:profile.display_name, provider:profile.auth_provider, piVerified:profile.pi_verified, level:profile.skill_level, referrals:0, pslBalance:balance, walletAddress:profile.wallet_address, pslWalletAddress:profile.psl_wallet_address ?? '', completedMines:profile.completed_mines, testMiner:false, lastCompletedMineId:null, lastRewardAmount:null, invitedFriends:[] };
+}
+
+type BackendSnapshot = NonNullable<Awaited<ReturnType<typeof syncBackendMine>>>;
+
+function mergeBackendSnapshot(previous: State, snapshot: BackendSnapshot, expectedMineId?: string): State {
+  const remoteUser = userFromRemote(snapshot.profile, snapshot.balance);
+  const candidateId = expectedMineId ?? previous.user?.lastCompletedMineId ?? undefined;
+  const confirmedMine = candidateId ? snapshot.mines[candidateId] : undefined;
+  const serverConfirmedCompletion = Boolean(
+    remoteUser
+    && confirmedMine?.completed
+    && confirmedMine.completedByUserId === remoteUser.id,
+  );
+
+  return {
+    ...previous,
+    user: remoteUser ? {
+      ...remoteUser,
+      lastCompletedMineId: serverConfirmedCompletion ? confirmedMine!.id : null,
+      lastRewardAmount: serverConfirmedCompletion ? rewardAmount(confirmedMine!.reward) : null,
+    } : null,
+    mines: snapshot.mines,
+    selectedGrid: snapshot.mines[previous.selectedGrid.id] ?? previous.selectedGrid,
+  };
 }
 
 export function AppStateProvider({ children }: PropsWithChildren) {
@@ -213,7 +237,18 @@ export function AppStateProvider({ children }: PropsWithChildren) {
 
   async function watchAd() {
     if (!state.user) return;
-    const mine = currentMine ?? state.selectedGrid;
+    let mine = currentMine ?? state.selectedGrid;
+
+    if (backendEnabled) {
+      const snapshot = await syncBackendMine();
+      if (snapshot) {
+        const serverMine = snapshot.mines[mine.id];
+        setState((previous) => mergeBackendSnapshot(previous, snapshot, mine.id));
+        if (serverMine?.completed) return;
+        if (serverMine) mine = serverMine;
+      }
+    }
+
     const settled = settleMine(mine, speed);
     const localNext = activateWithAd(settled, state.user.id);
     // Reflect the new 24-hour session immediately. The server result then
@@ -238,14 +273,21 @@ export function AppStateProvider({ children }: PropsWithChildren) {
     router.replace({ pathname: '/(tabs)/map', params: { selectedGridId: reset.id } });
   }
 
-  const syncProgress = useCallback(() => {
-    if (backendEnabled && Date.now() - lastBackendSyncAt >= 30_000) {
+  const syncProgress = useCallback(async (force = false) => {
+    if (backendEnabled) {
+      if (!force && Date.now() - lastBackendSyncAt < 30_000) return;
       lastBackendSyncAt = Date.now();
-      syncBackendMine().then((snapshot) => {
-        if (!snapshot) return;
-        setState((previous) => ({ ...previous, user:userFromRemote(snapshot.profile,snapshot.balance), mines:snapshot.mines, selectedGrid:snapshot.mines[previous.selectedGrid.id] ?? previous.selectedGrid }));
-      }).catch(console.warn);
+      const snapshot = await syncBackendMine();
+      if (!snapshot) return;
+      setState((previous) => {
+        const activeMine = previous.user
+          ? Object.values(previous.mines).find((candidate) => candidate.ownerId === previous.user?.id)
+          : undefined;
+        return mergeBackendSnapshot(previous, snapshot, activeMine?.id);
+      });
+      return;
     }
+
     setState((previous) => {
       if (!previous.user) return previous;
 

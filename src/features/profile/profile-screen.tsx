@@ -1,5 +1,7 @@
+import * as Clipboard from "expo-clipboard";
 import * as Linking from "expo-linking";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import Svg, { Rect } from "react-native-svg";
 import {
   Pressable,
   Share,
@@ -30,6 +32,7 @@ export function ProfileScreen() {
   const [wallet, setWalletInput] = useState("");
   const [challenge, setChallenge] = useState<WalletChallenge | null>(null);
   const [walletBusy, setWalletBusy] = useState(false);
+  const walletRequestActive = useRef(false);
   const [countdownClock, setCountdownClock] = useState(() => Date.now());
   const [pslWallet, setPslWalletInput] = useState(user.pslWalletAddress);
   const [pslWalletBusy, setPslWalletBusy] = useState(false);
@@ -71,6 +74,9 @@ export function ProfileScreen() {
     String(Math.floor(remainingSeconds / 60)).padStart(2, "0") +
     ":" +
     String(remainingSeconds % 60).padStart(2, "0");
+  const abbreviatedChallengeWallet = challenge
+    ? `${challenge.walletAddress.slice(0, 5)}...${challenge.walletAddress.slice(-5)}`
+    : "";
 
   useEffect(() => {
     if (!challenge) return;
@@ -79,6 +85,8 @@ export function ProfileScreen() {
   }, [challenge]);
 
   async function beginWalletVerification(allowTransfer = false) {
+    if (walletRequestActive.current) return;
+    walletRequestActive.current = true;
     setWalletBusy(true);
     try {
       const next = await createWalletChallenge(wallet, allowTransfer);
@@ -101,6 +109,7 @@ export function ProfileScreen() {
         setVerifiedWallet(next.walletAddress);
         return;
       }
+      setCountdownClock(Date.now());
       setChallenge(next);
     } catch (error) {
       showDialog({
@@ -108,12 +117,14 @@ export function ProfileScreen() {
         message: error instanceof Error ? error.message : String(error),
       });
     } finally {
+      walletRequestActive.current = false;
       setWalletBusy(false);
     }
   }
 
   async function checkWalletVerification() {
-    if (!challenge) return;
+    if (!challenge || walletRequestActive.current || remainingSeconds <= 0) return;
+    walletRequestActive.current = true;
     setWalletBusy(true);
     try {
       const result = await verifyWalletChallenge(challenge.id);
@@ -142,6 +153,7 @@ export function ProfileScreen() {
         message: error instanceof Error ? error.message : String(error),
       });
     } finally {
+      walletRequestActive.current = false;
       setWalletBusy(false);
     }
   }
@@ -430,19 +442,50 @@ export function ProfileScreen() {
           <>
             <Text style={styles.helper}>
               {t(
-                "Pi Wallet에서 아래 Muxed 주소로 정확한 수량을 보내세요. 같은 G 지갑으로 돌아오므로 송금액은 상쇄되고 네트워크 수수료만 사용됩니다.",
-                "From Pi Wallet, send the exact amount to the Muxed address below. Because it returns to the same G wallet, only the network fee is spent.",
+                `Pi Wallet에서 아래 Muxed 주소로 정확한 수량을 보내세요. 인증을 요청한 ${abbreviatedChallengeWallet} 지갑으로 돌아오므로 송금액은 상쇄되고 네트워크 수수료만 사용됩니다.`,
+                `From Pi Wallet, send the exact amount to the Muxed address below. Because it returns to the requesting ${abbreviatedChallengeWallet} wallet, only the network fee is spent.`,
               )}
             </Text>
             <Text style={styles.challengeLabel}>
-              {challenge.network === "mainnet" ? "PI MAINNET" : "PI TESTNET"}
+              {challenge.network === "mainnet"
+                ? t("주의! Pi MAINNET에서 송금", "CAUTION! SEND ON PI MAINNET")
+                : t("주의! Pi TESTNET에서 송금", "CAUTION! SEND ON PI TESTNET")}
             </Text>
             <Text style={styles.amountText}>
-              {Number(challenge.amount).toFixed(1)} Pi
+              {Number(challenge.amount).toFixed(2)} Pi
             </Text>
+            <View style={styles.muxedAddressRow}>
             <Text selectable style={styles.muxedAddress}>
               {challenge.muxedAddress}
             </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("Muxed 주소 복사", "Copy Muxed address")}
+              onPress={() => {
+                void Clipboard.setStringAsync(challenge.muxedAddress).then(() =>
+                  showDialog({
+                    title: t("복사 완료", "Copied"),
+                    message: t(
+                      "Muxed 주소를 클립보드에 복사했습니다.",
+                      "The Muxed address was copied to the clipboard.",
+                    ),
+                  }),
+                ).catch((error) => showDialog({
+                  title: t("복사 실패", "Copy failed"),
+                  message: error instanceof Error ? error.message : String(error),
+                }));
+              }}
+              style={({ pressed }) => [
+                styles.copyButton,
+                pressed && styles.modeButtonPressed,
+              ]}
+            >
+              <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={palette.goldDark} strokeWidth={1.8}>
+                <Rect x={4} y={3} width={12} height={14} rx={2} />
+                <Rect x={8} y={7} width={12} height={14} rx={2} fill={palette.surface2} />
+              </Svg>
+            </Pressable>
+            </View>
             <Text style={styles.expiryText}>
               {t("남은 유효시간", "Time remaining")}: {remainingTime}
             </Text>
@@ -458,7 +501,7 @@ export function ProfileScreen() {
               }}
             />
             <Button
-              title={t("새 인증 요청", "Start over")}
+              title={t("지갑 주소 변경 / 재요청", "Change wallet / Request again")}
               secondary
               disabled={walletBusy}
               onPress={() => setChallenge(null)}
@@ -497,10 +540,10 @@ export function ProfileScreen() {
       </Card>
 
       <Card>
-        <View style={styles.cardHeader}>
-          <Text style={[styles.sectionTitle, styles.cardHeaderTitle]}>
-            {t("PSL 토큰 지갑 연결", "Connect PSL token wallet")}
-          </Text>
+        <Text style={styles.sectionTitle}>
+          {t("PSL 토큰 지갑 연결", "Connect PSL token wallet")}
+        </Text>
+        <View style={styles.walletLinkRow}>
           <Pressable
             accessibilityRole="link"
             onPress={() => {
@@ -522,6 +565,29 @@ export function ProfileScreen() {
           >
             <Text style={styles.walletOpenText}>
               {t("PSL 지갑 열기", "Open PSL wallet")}
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="link"
+            onPress={() => {
+              Linking.openURL("https://saseulscan.xyz/#/tokens").catch(
+                (error) =>
+                  showDialog({
+                    title: t(
+                      "익스플로러를 열 수 없습니다",
+                      "Unable to open explorer",
+                    ),
+                    message: String(error),
+                  }),
+              );
+            }}
+            style={({ pressed }) => [
+              styles.walletOpenButton,
+              pressed && styles.modeButtonPressed,
+            ]}
+          >
+            <Text style={styles.walletOpenText}>
+              {t("익스플로러 연결", "Open explorer")}
             </Text>
           </Pressable>
         </View>
@@ -618,7 +684,12 @@ export function ProfileScreen() {
           <Text style={styles.identityLabel}>
             {t("Pi 지갑 소유권", "Pi wallet ownership")}
           </Text>
-          <Text style={styles.identityValue}>
+          <Text
+            style={[
+              styles.identityValue,
+              user.piVerified && styles.identityVerifiedValue,
+            ]}
+          >
             {user.piVerified
               ? t(
                   "인증 완료 · 채굴한 PSL 출금 가능",
@@ -785,7 +856,11 @@ const styles = StyleSheet.create({
   },
   cardHeaderTitle: { flex: 1, minWidth: 0 },
   walletOpenButton: {
-    flexShrink: 0,
+    flex: 1,
+    minWidth: 0,
+    minHeight: 42,
+    alignItems: "center",
+    justifyContent: "center",
     borderRadius: 11,
     borderWidth: 1,
     borderColor: palette.gold,
@@ -793,7 +868,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
-  walletOpenText: { color: palette.goldDark, fontSize: 11, fontWeight: "900" },
+  walletLinkRow: { flexDirection: "row", gap: 8 },
+  copyButton: {
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 44,
+    minHeight: 44,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: palette.gold,
+    backgroundColor: palette.surface2,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  walletOpenText: { color: palette.goldDark, fontSize: 11, fontWeight: "900", textAlign: "center" },
   friendRow: {
     minHeight: 42,
     justifyContent: "center",
@@ -848,6 +936,7 @@ const styles = StyleSheet.create({
     opacity: 0.78,
   },
   verifiedBadge: { color: palette.green, fontSize: 15, fontWeight: "900" },
+  identityVerifiedValue: { color: palette.green },
   addressText: {
     color: palette.text,
     fontSize: 12,
@@ -874,6 +963,8 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   muxedAddress: {
+    flex: 1,
+    minWidth: 0,
     color: palette.text,
     fontSize: 12,
     lineHeight: 19,
@@ -882,6 +973,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12,
   },
+  muxedAddressRow: { flexDirection: "row", alignItems: "center", backgroundColor: palette.surface2, borderRadius: 14, paddingRight: 6 },
   expiryText: {
     color: palette.danger,
     fontSize: 12,

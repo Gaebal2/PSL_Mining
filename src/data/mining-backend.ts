@@ -3,6 +3,7 @@ import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { withRequestDeadline } from '@/lib/request-deadline';
 
 type Provider = 'google' | 'apple' | 'pi';
 type MineRow = { grid_id:string; latitude:number; longitude:number; depth_meters:number|string; miner_id:string|null; miner_name:string|null; mining_speed:number|string|null; active_until:string|null; abandonment_at:string|null; last_calculated_at:string|null; completed_at:string|null; completed_by:string|null; reward_type:GridMine['reward'] };
@@ -78,11 +79,12 @@ export async function savePslWalletAddress(pslWalletAddress:string) {
 export type WalletChallenge = { id:string; walletAddress:string; muxedAddress:string; amount:number|string; network:'testnet'|'mainnet'; expiresAt:string; alreadyVerified?:boolean; ownershipConflict?:boolean; previousAccountName?:string };
 async function throwFunctionError(error: {message:string; context?:unknown}) {
   let message=error.message;
-  const response=error.context instanceof Response ? error.context : null;
-  if(response) { try { const body=await response.clone().json() as {error?:string}; if(body.error) message=body.error; } catch { /* keep the SDK message */ } }
+  const response=error.context as { clone?: () => { json: () => Promise<{error?:string;message?:string}> } } | undefined;
+  if(response?.clone) { try { const body=await response.clone().json(); message=body.error || body.message || message; } catch { /* keep the SDK message */ } }
   throw new Error(message);
 }
 export async function createWalletChallenge(walletAddress:string, allowTransfer=false) {
+  return withRequestDeadline(async (signal) => {
   if (!supabase) throw new Error('Supabase가 설정되지 않았습니다.');
   let {data:{session}}=await supabase.auth.getSession();
   if(!session) {
@@ -90,10 +92,12 @@ export async function createWalletChallenge(walletAddress:string, allowTransfer=
     session=refreshed.data.session;
   }
   if(!session) throw new Error('로그인이 만료되었습니다. 로그아웃 후 다시 로그인해 주세요.');
-  const {data,error}=await supabase.functions.invoke('wallet-challenge',{body:{walletAddress,allowTransfer},headers:{Authorization:`Bearer ${session.access_token}`}});
+  const {data,error}=await supabase.functions.invoke('wallet-challenge',{body:{walletAddress,allowTransfer},headers:{Authorization:`Bearer ${session.access_token}`},signal});
   if(error) await throwFunctionError(error); if(data?.error) throw new Error(data.error); return data as WalletChallenge;
+  });
 }
 export async function verifyWalletChallenge(challengeId:string) {
+  return withRequestDeadline(async (signal) => {
   if (!supabase) throw new Error('Supabase가 설정되지 않았습니다.');
   let {data:{session}}=await supabase.auth.getSession();
   if(!session) {
@@ -101,9 +105,10 @@ export async function verifyWalletChallenge(challengeId:string) {
     session=refreshed.data.session;
   }
   if(!session) throw new Error('로그인이 만료되었습니다. 로그아웃 후 다시 로그인해 주세요.');
-  const {data,error}=await supabase.functions.invoke('wallet-verify',{body:{challengeId},headers:{Authorization:`Bearer ${session.access_token}`}});
+  const {data,error}=await supabase.functions.invoke('wallet-verify',{body:{challengeId},headers:{Authorization:`Bearer ${session.access_token}`},signal});
   if(error) await throwFunctionError(error); if(data?.error) throw new Error(data.error);
   return data as {verified:boolean;pending?:boolean;walletAddress?:string;transactionHash?:string;checkedPaymentCount?:number};
+  });
 }
 
 export type MiningStatus = { totalMiners:number; activeMiners:number; completedMines:number };

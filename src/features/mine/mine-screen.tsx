@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from 'expo-router';
-import { ReactNode, useCallback, useEffect, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Image, ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,6 +16,8 @@ import { showRewardedAd } from '@/lib/rewarded-ad';
 export function MineScreen() {
   const { state, currentMine, watchAd, syncProgress, leaveCurrentMine } = useAppState();
   const [clock, setClock] = useState(() => Date.now());
+  const [isAdProcessing, setIsAdProcessing] = useState(false);
+  const completionSyncMineId = useRef<string | null>(null);
   const user = state.user!;
   const showDialog = useAppDialog();
   const { t } = useLocale();
@@ -43,19 +45,28 @@ export function MineScreen() {
 
   // Run once per screen focus; the provider action intentionally reads the latest persisted snapshot.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useFocusEffect(useCallback(() => { setClock(Date.now()); syncProgress(); }, []));
+  useFocusEffect(useCallback(() => { setClock(Date.now()); void syncProgress(); }, []));
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
       if (nextState !== 'active') return;
       setClock(Date.now());
-      syncProgress();
     });
     return () => subscription.remove();
-  }, [syncProgress]);
+  }, []);
   useEffect(() => {
-    const timer = setInterval(() => { setClock(Date.now()); syncProgress(); }, 250);
+    const timer = setInterval(() => { setClock(Date.now()); }, 250);
     return () => clearInterval(timer);
-  }, [syncProgress]);
+  }, []);
+  useEffect(() => {
+    if (!displayed?.completed || !currentMine || currentMine.completed) return;
+    if (completionSyncMineId.current === currentMine.id) return;
+
+    completionSyncMineId.current = currentMine.id;
+    syncProgress(true).catch((error) => {
+      console.warn(error);
+      completionSyncMineId.current = null;
+    });
+  }, [currentMine, displayed?.completed, syncProgress]);
   useEffect(() => {
     if (!isActive) {
       cancelAnimation(swing);
@@ -105,19 +116,22 @@ export function MineScreen() {
   }
 
   function handleActivation() {
-    if (isActive) return;
+    if (isActive || isAdProcessing) return;
     showDialog({
       title: t('리워드 광고', 'Rewarded ad'),
       message: t('광고를 끝까지 시청하면 이 막장에서 24시간 채굴을 다시 시작합니다.', 'Watch the full ad to restart 24 hours of mining in this mine.'),
       actions: [
         { text: t('취소', 'Cancel'), style: 'cancel' },
         { text: t('광고 시청', 'Watch ad'), onPress: async () => {
+          setIsAdProcessing(true);
           try {
             await showRewardedAd();
             await watchAd();
             setClock(Date.now());
           } catch (error) {
             showDialog({ title: t('활성화 실패', 'Activation failed'), message: error instanceof Error ? error.message : String(error) });
+          } finally {
+            setIsAdProcessing(false);
           }
         } },
       ],
@@ -168,9 +182,9 @@ export function MineScreen() {
             </View>
             <Card style={styles.infoCard}>
               <MetricColumn label="24hr">
-                <Pressable disabled={isActive} onPress={handleActivation} style={[styles.metricBox, styles.activationBox, isActive && styles.pieDisabled]}>
+                <Pressable disabled={isActive || isAdProcessing} onPress={handleActivation} style={[styles.metricBox, styles.activationBox, isActive || isAdProcessing ? styles.pieDisabled : styles.activationReady]}>
                   <MiningActivationIcon progress={activationProgress} />
-                  <Text style={[styles.pieStatus, !isActive && styles.pieStatusReady]}>{isActive ? `${remainingHours}h ${remainingMinutes}m` : t('채굴', 'Mine')}</Text>
+                  <Text style={[styles.pieStatus, !isActive && !isAdProcessing && styles.pieStatusReady]}>{isActive ? `${remainingHours}h ${remainingMinutes}m` : isAdProcessing ? t('광고 준비 중…', 'Preparing ad…') : t('채굴시작', 'Start mining')}</Text>
                 </Pressable>
               </MetricColumn>
               <MetricColumn label={t('기본속도', 'Base')} value={BASE_MINING_SPEED.toFixed(1)} tone="base" />
@@ -267,7 +281,8 @@ const styles = StyleSheet.create({
   metricValueAccent: { color: '#FFF0B5', fontWeight: '900' },
   activationBox: { paddingTop: 2 },
   pieDisabled: { borderColor: palette.border, backgroundColor: palette.surface2 },
-  foodIconWrap: { width: 44, height: 44 },
+  activationReady: { borderColor: palette.border, backgroundColor: '#FFFFFF' },
+  foodIconWrap: { width: 44, height: 44, overflow: 'hidden' },
   foodIcon: { width: 44, height: 44 },
   foodIconDim: { opacity: 0.18 },
   pieStatus: { color: palette.muted, fontSize: 8, fontWeight: '900', marginTop: -3 },

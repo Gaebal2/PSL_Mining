@@ -1,11 +1,12 @@
 import { DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
-import mobileAds from 'react-native-google-mobile-ads';
+import { AppState } from 'react-native';
 
 import { AppStateProvider, useAppState } from '@/state/app-state';
 import { LocaleProvider, useLocale } from '@/state/locale';
 import { AppDialogProvider, useAppDialog } from '@/ui/app-dialog';
+import { prepareRewardedAd } from '@/lib/rewarded-ad';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -57,7 +58,11 @@ function RootNavigator() {
 
 export default function RootLayout() {
   useEffect(() => {
-    mobileAds().initialize().catch(console.warn);
+    prepareRewardedAd().catch(console.warn);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') prepareRewardedAd().catch(console.warn);
+    });
+    return () => subscription.remove();
   }, []);
 
   return (
